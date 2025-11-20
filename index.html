@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beam Balance: Colors Swapped</title>
+    <title>Beam Balance: Fixed</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@400;700&display=swap');
@@ -53,7 +53,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            z-index: 20;
+            z-index: 50; /* Increased Z-Index to be safe */
             transition: opacity 0.3s;
             pointer-events: auto;
         }
@@ -102,6 +102,8 @@
         
         .btn-base {
             transition: transform 0.1s, box-shadow 0.1s;
+            cursor: pointer; /* Helpful for desktop */
+            touch-action: manipulation; /* Improves tap response */
         }
         .btn-base:active {
             transform: scale(0.95);
@@ -158,13 +160,13 @@
                     <span class="text-xs text-blue-200 opacity-80">BEST: <span id="menuNormalBest">0</span>m</span>
                 </button>
 
-                <!-- Hard (Now Purple) -->
+                <!-- Hard -->
                 <button id="startHardBtn" class="btn-base w-full py-3 bg-purple-900 hover:bg-purple-800 text-white rounded-lg shadow-[0_0_15px_rgba(147,51,234,0.4)] border border-purple-500 flex flex-col items-center">
                     <span class="text-lg font-bold tracking-wider text-purple-100">HARD</span>
                     <span class="text-xs text-purple-300 opacity-80">BEST: <span id="menuHardBest">0</span>m</span>
                 </button>
 
-                <!-- Very Hard (Now Red) -->
+                <!-- Very Hard -->
                 <button id="startVeryHardBtn" class="btn-base w-full py-3 bg-red-900 hover:bg-red-800 text-white rounded-lg shadow-[0_0_15px_rgba(220,38,38,0.4)] border border-red-500 flex flex-col items-center relative overflow-hidden">
                     <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-10 animate-pulse"></div>
                     <span class="text-lg font-bold tracking-wider text-red-100">VERY HARD</span>
@@ -176,7 +178,6 @@
 
     <!-- Game Over Screen -->
     <div id="gameOverScreen" class="menu-screen hidden">
-        
         <div id="newRecordMessage" class="hidden mb-6 flex flex-col items-center">
             <div class="text-6xl mb-2">🏆</div>
             <h2 class="text-4xl font-bold gold-text high-score-anim text-center">NEW HIGH SCORE!</h2>
@@ -234,12 +235,8 @@
         const BEAM_THICKNESS = 8;
         const MIN_GAP = 24 * 2.5; 
         const SNAP_DISTANCE = 25; 
-        
-        // PHYSICS TUNING: Snappy
         const ROLL_BOOST = 1.8; 
         const RAIL_FRICTION = 0.98; 
-        
-        // VOID MOVEMENT
         const VOID_SPEED = 40; 
         const CURRENT_ZONE_HEIGHT = 500; 
 
@@ -252,54 +249,64 @@
         let currentDifficulty = 'NORMAL';
         let bgColor = { r: 15, g: 23, b: 42 }; 
 
-        // Persistent Scores
         let bestNormal = 0;
         let bestHard = 0;
         let bestVeryHard = 0;
 
-        // Entities
         let ball = { x: 0, y: 0, vx: 0, vy: 0, magnetized: false };
         let holes = []; 
         let particles = [];
         let bgStars = [];
 
-        // Input
         let leftThumb = null; 
         let rightThumb = null; 
         let beam = null; 
         let rawBeam = null;
 
-        // --- Storage ---
+        // --- Robust Storage ---
         function loadScores() {
-            const n = localStorage.getItem('beam_balance_normal_best');
-            const h = localStorage.getItem('beam_balance_hard_best');
-            const v = localStorage.getItem('beam_balance_veryhard_best');
-            bestNormal = n ? parseInt(n) : 0;
-            bestHard = h ? parseInt(h) : 0;
-            bestVeryHard = v ? parseInt(v) : 0;
+            try {
+                const n = localStorage.getItem('beam_balance_normal_best');
+                const h = localStorage.getItem('beam_balance_hard_best');
+                const v = localStorage.getItem('beam_balance_veryhard_best');
+                bestNormal = n ? parseInt(n) : 0;
+                bestHard = h ? parseInt(h) : 0;
+                bestVeryHard = v ? parseInt(v) : 0;
+            } catch (e) {
+                console.warn("LocalStorage not available", e);
+                bestNormal = 0; bestHard = 0; bestVeryHard = 0;
+            }
             updateMenuUI();
         }
 
         function saveScore(newScore) {
-            if (currentDifficulty === 'NORMAL') {
-                if (newScore > bestNormal) { bestNormal = newScore; localStorage.setItem('beam_balance_normal_best', bestNormal); return true; }
-            } else if (currentDifficulty === 'HARD') {
-                if (newScore > bestHard) { bestHard = newScore; localStorage.setItem('beam_balance_hard_best', bestHard); return true; }
-            } else {
-                if (newScore > bestVeryHard) { bestVeryHard = newScore; localStorage.setItem('beam_balance_veryhard_best', bestVeryHard); return true; }
+            try {
+                if (currentDifficulty === 'NORMAL') {
+                    if (newScore > bestNormal) { bestNormal = newScore; localStorage.setItem('beam_balance_normal_best', bestNormal); return true; }
+                } else if (currentDifficulty === 'HARD') {
+                    if (newScore > bestHard) { bestHard = newScore; localStorage.setItem('beam_balance_hard_best', bestHard); return true; }
+                } else {
+                    if (newScore > bestVeryHard) { bestVeryHard = newScore; localStorage.setItem('beam_balance_veryhard_best', bestVeryHard); return true; }
+                }
+            } catch (e) {
+                console.warn("Could not save score", e);
+                // Update in-memory anyway
+                if (currentDifficulty === 'NORMAL' && newScore > bestNormal) { bestNormal = newScore; return true; }
+                if (currentDifficulty === 'HARD' && newScore > bestHard) { bestHard = newScore; return true; }
+                if (currentDifficulty === 'VERY_HARD' && newScore > bestVeryHard) { bestVeryHard = newScore; return true; }
             }
             return false;
         }
 
         function updateMenuUI() {
-            menuNormalBest.innerText = bestNormal;
-            menuHardBest.innerText = bestHard;
-            menuVeryHardBest.innerText = bestVeryHard;
+            if(menuNormalBest) menuNormalBest.innerText = bestNormal;
+            if(menuHardBest) menuHardBest.innerText = bestHard;
+            if(menuVeryHardBest) menuVeryHardBest.innerText = bestVeryHard;
         }
 
         // --- Input Handlers ---
         function handleTouch(e) {
-            e.preventDefault();
+            e.preventDefault(); // Prevents scroll, but can block clicks if on wrong element
             const rect = touchLayer.getBoundingClientRect();
             const touches = e.changedTouches;
             const midX = window.innerWidth / 2;
@@ -341,16 +348,7 @@
             }
         }
 
-        touchLayer.addEventListener('touchstart', handleTouch, { passive: false });
-        touchLayer.addEventListener('touchmove', handleTouch, { passive: false });
-        touchLayer.addEventListener('touchend', handleTouch, { passive: false });
-        touchLayer.addEventListener('touchcancel', handleTouch, { passive: false });
-        touchLayer.addEventListener('mousedown', handleMouse);
-        touchLayer.addEventListener('mousemove', handleMouse);
-        touchLayer.addEventListener('mouseup', handleMouse);
-
         // --- Game Logic ---
-
         function resize() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -366,7 +364,6 @@
                 });
             }
         }
-        window.addEventListener('resize', resize);
 
         function initGame(difficulty) {
             resize();
@@ -408,7 +405,7 @@
         }
 
         function generateHoles(startY, endY) {
-            const stepY = 50; // High Density
+            const stepY = 50; 
             let currentY = startY;
             while (currentY < endY) {
                 const attempts = 20; 
@@ -434,11 +431,9 @@
         }
 
         function update(dt) {
-            // Difficulty Scaling
             if (currentDifficulty === 'NORMAL') {
                 scrollSpeed = SCROLL_SPEED_BASE + (score / 4); 
             } else {
-                // Hard & Very Hard share speed scaling
                 scrollSpeed = SCROLL_SPEED_BASE + (score / 1.5); 
                 const progress = Math.min(score / 500, 1); 
                 bgColor.r = 15 * (1 - progress);
@@ -456,22 +451,13 @@
                 generateHoles(lastHoleY, cameraY + window.innerHeight + 1600);
             }
 
-            // --- VERY HARD MODE: VOID MOVEMENTS ---
             if (currentDifficulty === 'VERY_HARD') {
                 for (let h of holes) {
-                    // Determine current zone
                     const zoneIndex = Math.floor(h.y / CURRENT_ZONE_HEIGHT);
-                    // Even zones move Left, Odd zones move Right
                     const direction = (zoneIndex % 2 === 0) ? -1 : 1;
-                    
                     h.x += direction * VOID_SPEED * dt;
-                    
-                    // Wrap around screen
-                    if (direction === -1 && h.x < -h.r) {
-                        h.x = window.innerWidth + h.r;
-                    } else if (direction === 1 && h.x > window.innerWidth + h.r) {
-                        h.x = -h.r;
-                    }
+                    if (direction === -1 && h.x < -h.r) { h.x = window.innerWidth + h.r; } 
+                    else if (direction === 1 && h.x > window.innerWidth + h.r) { h.x = -h.r; }
                 }
             }
 
@@ -480,4 +466,7 @@
                 const rawX1 = leftThumb.x;
                 const rawY1 = leftThumb.y + cameraY;
                 const rawX2 = rightThumb.x;
-                const 
+                const rawY2 = rightThumb.y + cameraY;
+                const dx = rawX2 - rawX1;
+                const dy = rawY2 - rawY1;
+                const len = Math.s
