@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beam Balance v0.1.9</title>
+    <title>Beam Balance v0.1.14</title>
     <style>
+        /* Fallback font system */
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@400;700&display=swap');
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        
+
         body {
             margin: 0; padding: 0; overflow: hidden;
             background-color: #0F172A;
-            touch-action: none;
+            touch-action: none; /* Prevents scrolling/zooming */
             font-family: 'Roboto', sans-serif;
             user-select: none; -webkit-user-select: none;
             color: white;
@@ -27,47 +28,14 @@
             pointer-events: none; z-index: 10;
             display: flex; flex-direction: column; justify-content: space-between;
         }
-        
+
         .top-bar { padding: 20px; display: flex; justify-content: space-between; align-items: flex-start; }
         .score-box { text-align: right; }
-
-        /* MENU STYLES */
-        .menu-screen {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(15, 23, 42, 0.98);
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 100; transition: opacity 0.2s;
-            pointer-events: auto; touch-action: pan-y;
-        }
-        
-        .title { font-family: 'Orbitron', sans-serif; font-size: 3rem; font-weight: bold; text-align: center; margin-bottom: 10px; letter-spacing: 0.1em; text-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
-        .subtitle { color: #9CA3AF; text-align: center; margin-bottom: 30px; font-size: 0.9rem; line-height: 1.5; max-width: 300px; }
-        .highlight-blue { color: #60A5FA; }
-        
-        .btn-container { width: 100%; max-width: 320px; padding: 0 20px; display: flex; flex-direction: column; gap: 15px; }
-        
-        .game-btn {
-            width: 100%; padding: 15px;
-            border-radius: 12px; border: 2px solid;
-            cursor: pointer; text-align: center;
-            transition: transform 0.1s, opacity 0.1s;
-            position: relative; overflow: hidden;
-            background: #1E293B;
-        }
-        .game-btn:active { transform: scale(0.96); opacity: 0.9; }
-        
-        .btn-normal { border-color: #3B82F6; background: linear-gradient(45deg, #1E3A8A, #1D4ED8); box-shadow: 0 0 15px rgba(37, 99, 235, 0.3); }
-        .btn-hard { border-color: #A855F7; background: linear-gradient(45deg, #581C87, #7E22CE); box-shadow: 0 0 15px rgba(126, 34, 206, 0.3); }
-        .btn-veryhard { border-color: #EF4444; background: linear-gradient(45deg, #7F1D1D, #B91C1C); box-shadow: 0 0 15px rgba(185, 28, 28, 0.3); }
-        .btn-retry { border-color: #22C55E; background: linear-gradient(45deg, #14532D, #15803D); }
-        
-        .btn-label { display: block; font-size: 1.2rem; font-weight: bold; font-family: 'Orbitron', sans-serif; letter-spacing: 0.05em; margin-bottom: 4px; }
-        .btn-score { display: block; font-size: 0.75rem; opacity: 0.8; font-family: monospace; }
 
         .neon-danger { font-family: 'Orbitron', sans-serif; text-shadow: 0 0 15px rgba(239, 68, 68, 0.8); font-size: 1.5rem; font-weight: bold; }
         .score-main { font-family: monospace; font-size: 2rem; color: #60A5FA; font-weight: bold; }
         .score-sub { font-family: monospace; font-size: 0.8rem; color: #6B7280; }
-        
+
         .zone-hint {
             position: absolute; top: 50%; width: 100px; height: 100px;
             border: 2px dashed rgba(255,255,255,0.15); border-radius: 50%;
@@ -76,29 +44,66 @@
             font-size: 10px; text-align: center; pointer-events: none;
         }
 
-        .hidden { display: none !important; }
-        
+        /* SCREENS */
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.98);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; 
+            pointer-events: auto; 
+            touch-action: pan-y; /* Allow menu scrolling */
+        }
+
+        .menu-container {
+            width: 100%; max-width: 320px; padding: 0 20px;
+            display: flex; flex-direction: column; align-items: center;
+            max-height: 90vh; overflow-y: auto;
+        }
+
+        .title { font-family: 'Orbitron', sans-serif; font-size: 3rem; font-weight: bold; text-align: center; margin-bottom: 10px; letter-spacing: 0.1em; text-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
+        .subtitle { color: #9CA3AF; text-align: center; margin-bottom: 30px; font-size: 0.9rem; line-height: 1.5; }
+        .highlight-blue { color: #60A5FA; }
+
+        /* BUTTONS */
+        .btn-container { width: 100%; display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px; }
+
+        .game-btn {
+            width: 100%; padding: 15px;
+            border-radius: 12px; border: 2px solid;
+            cursor: pointer; text-align: center;
+            transition: transform 0.1s, opacity 0.1s;
+            position: relative; overflow: hidden;
+            background: #1E293B; color: white;
+            touch-action: manipulation; /* Critical for mobile taps */
+        }
+        .game-btn:active { transform: scale(0.96); opacity: 0.9; }
+
+        /* Button Variants */
+        .btn-normal { border-color: #3B82F6; background: linear-gradient(45deg, #1E3A8A, #1D4ED8); box-shadow: 0 0 15px rgba(37, 99, 235, 0.3); }
+        .btn-hard { border-color: #A855F7; background: linear-gradient(45deg, #581C87, #7E22CE); box-shadow: 0 0 15px rgba(126, 34, 206, 0.3); }
+        .btn-veryhard { border-color: #EF4444; background: linear-gradient(45deg, #7F1D1D, #B91C1C); box-shadow: 0 0 15px rgba(185, 28, 28, 0.3); }
+        .btn-retry { border-color: #22C55E; background: linear-gradient(45deg, #14532D, #15803D); }
+        .btn-menu { background: transparent; border-color: #6B7280; color: #9CA3AF; }
+
+        .btn-label { display: block; font-size: 1.2rem; font-weight: bold; font-family: 'Orbitron', sans-serif; letter-spacing: 0.05em; margin-bottom: 4px; }
+        .btn-score { display: block; font-size: 0.75rem; opacity: 0.8; font-family: monospace; }
+
+        /* LOGGING */
         #systemLog {
             position: absolute; top: 0; left: 0; padding: 4px;
             color: yellow; background: rgba(0,0,0,0.5);
             font-family: monospace; font-size: 10px; z-index: 9999;
-            pointer-events: none;
+            pointer-events: none; display: none; /* Hidden by default unless error */
         }
-        
-        #forceStartContainer { margin-top: 20px; text-align: center; display: none; }
-        .btn-force { background: #333; border: 1px solid #666; padding: 10px 20px; color: #aaa; font-size: 12px; border-radius: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <!-- DEBUG LOG -->
-    <div id="systemLog">Booting...</div>
+    <div id="systemLog"></div>
 
-    <!-- CANVAS -->
     <canvas id="gameCanvas"></canvas>
     <canvas id="uiCanvas"></canvas>
 
-    <!-- TOUCH INPUT LAYER -->
     <div id="touchLayer" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index: 5;"></div>
 
     <!-- HUD -->
@@ -115,10 +120,10 @@
     </div>
 
     <!-- MENU SCREEN -->
-    <div id="menuScreen" class="menu-screen">
+    <div id="menuScreen" class="screen">
         <div class="menu-container">
             <div class="title">BEAM<br><span class="highlight-blue">BALANCE</span></div>
-            <div class="subtitle">Magnetic Rail System<br>v0.1.9</div>
+            <div class="subtitle">Magnetic Rail System<br>v0.1.14</div>
             
             <div class="btn-container">
                 <!-- Normal -->
@@ -127,85 +132,92 @@
                     <span class="btn-score">BEST: <span id="menuNormalBest">0</span>m</span>
                 </div>
 
-                <!-- Hard -->
+                <!-- Hard (Purple) -->
                 <div id="btnHard" class="game-btn btn-hard">
                     <span class="btn-label" style="color:#E9D5FF">HARD</span>
                     <span class="btn-score" style="color:#E9D5FF">BEST: <span id="menuHardBest">0</span>m</span>
                 </div>
 
-                <!-- Very Hard -->
+                <!-- Very Hard (Red) -->
                 <div id="btnVeryHard" class="game-btn btn-veryhard">
                     <span class="btn-label" style="color:#FECACA">VERY HARD</span>
                     <span class="btn-score" style="color:#FECACA">BEST: <span id="menuVeryHardBest">0</span>m</span>
                 </div>
             </div>
-            
-            <div id="forceStartContainer">
-                <button class="btn-force" onclick="forceBoot()">FORCE START GAME</button>
-            </div>
         </div>
     </div>
 
     <!-- GAME OVER SCREEN -->
-    <div id="gameOverScreen" class="menu-screen hidden">
-        <div class="title" style="font-size: 2.5rem; color: #EF4444; text-shadow: 0 0 20px red;">VOIDED</div>
-        <div class="subtitle" id="deathReason">Fell into the void</div>
-        
-        <div class="score-main" style="font-size: 3rem; margin-bottom: 10px;"><span id="finalScore">0</span>m</div>
-        <div class="subtitle">MODE BEST: <span id="endBestScore">0</span>m</div>
-        
-        <div class="btn-container">
-            <div id="btnRetry" class="game-btn btn-retry">
-                <span class="btn-label">RETRY</span>
+    <div id="gameOverScreen" class="screen" style="display: none;">
+        <div class="menu-container">
+            
+            <!-- New Record Alert -->
+            <div id="newRecordMessage" style="display: none; margin-bottom: 20px; text-align: center;">
+                <div style="font-size: 3rem;">🏆</div>
+                <div style="font-family: 'Orbitron'; color: #FBBF24; font-size: 1.5rem; font-weight: bold;">NEW RECORD!</div>
+                <div style="color: #F59E0B; font-family: monospace;" id="recordModeLabel">NORMAL MODE</div>
             </div>
-            <div id="btnMenu" class="game-btn" style="background: transparent; border-color: #6B7280; color: #9CA3AF;">
-                <span class="btn-label" style="font-size: 0.9rem">CHANGE DIFFICULTY</span>
+
+            <!-- Standard Title -->
+            <div id="normalDeathTitle" class="title" style="color: #EF4444; font-size: 2.5rem;">VOIDED</div>
+            
+            <div class="subtitle" id="deathReason">Fell into the void</div>
+            
+            <div class="score-main" style="font-size: 3rem; margin-bottom: 10px;"><span id="finalScore">0</span>m</div>
+            <div class="subtitle">MODE BEST: <span id="endBestScore">0</span>m</div>
+            
+            <div class="btn-container">
+                <div id="btnRetry" class="game-btn btn-retry">
+                    <span class="btn-label">RETRY</span>
+                </div>
+                <div id="btnMenu" class="game-btn btn-menu">
+                    <span class="btn-label" style="font-size: 0.9rem">CHANGE DIFFICULTY</span>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- GAME LOGIC -->
     <script>
-        // --- LOGGER ---
+        // --- ERROR LOGGING ---
         const sysLog = document.getElementById('systemLog');
         function log(msg) {
             console.log(msg);
-            if(sysLog) sysLog.innerText = "SYS: " + msg;
+            if(sysLog) {
+                sysLog.style.display = 'block';
+                sysLog.innerText = "LOG: " + msg;
+            }
         }
-        window.onerror = function(msg, source, line) {
-            log(`ERR: ${msg} line ${line}`);
-        };
+        window.onerror = function(msg) { log(msg); };
 
-        // --- VARIABLES ---
+        // --- GLOBAL STATE ---
         let canvas, ctx, uiCanvas, uiCtx, touchLayer;
         let menuScreen, gameOverScreen, leftHint, rightHint;
         let animationFrameId;
 
+        // Config
         const GRAVITY = 1000;
         const SCROLL_SPEED_BASE = 130;
         const BALL_RADIUS = 12;
         const BEAM_THICKNESS = 8;
-        const MIN_GAP = 24 * 2.5;
-        const SNAP_DISTANCE = 25;
-        const ROLL_BOOST = 1.8;
-        const RAIL_FRICTION = 0.98;
-        const VOID_SPEED = 40;
-        const CURRENT_ZONE_HEIGHT = 500;
+        const MIN_GAP = 24 * 2.5; 
+        const SNAP_DISTANCE = 25; 
+        const ROLL_BOOST = 1.8; 
+        const RAIL_FRICTION = 0.98; 
+        const VOID_SPEED = 40; 
+        const CURRENT_ZONE_HEIGHT = 500; 
 
         let isPlaying = false, lastTime = 0, score = 0, scrollSpeed = 0, cameraY = 0;
         let currentDifficulty = 'NORMAL';
-        let bgColor = { r: 15, g: 23, b: 42 };
+        let bgColor = { r: 15, g: 23, b: 42 }; 
         let bestNormal = 0, bestHard = 0, bestVeryHard = 0;
 
         let ball = { x: 0, y: 0, vx: 0, vy: 0, magnetized: false };
         let holes = [], particles = [], bgStars = [];
         let leftThumb = null, rightThumb = null, beam = null, rawBeam = null;
 
-        // --- INIT SEQUENCE ---
-        
+        // --- BOOT SEQUENCE ---
         function boot() {
-            log("Booting...");
-            
+            // Get Elements
             canvas = document.getElementById('gameCanvas');
             ctx = canvas.getContext('2d');
             uiCanvas = document.getElementById('uiCanvas');
@@ -217,21 +229,12 @@
             leftHint = document.getElementById('leftHint');
             rightHint = document.getElementById('rightHint');
 
-            // Bind Events
-            const bind = (id, fn) => {
-                const el = document.getElementById(id);
-                if(!el) return log("Missing " + id);
-                el.onclick = (e) => { e.stopPropagation(); fn(); };
-                el.ontouchstart = (e) => { e.stopPropagation(); e.preventDefault(); fn(); };
-            };
+            // Resize & Load
+            resize();
+            window.addEventListener('resize', resize);
+            loadScores();
 
-            bind('btnNormal', () => initGame('NORMAL'));
-            bind('btnHard', () => initGame('HARD'));
-            bind('btnVeryHard', () => initGame('VERY_HARD'));
-            bind('btnRetry', () => initGame(currentDifficulty));
-            bind('btnMenu', showMenu);
-
-            // Inputs
+            // Bind Inputs
             touchLayer.ontouchstart = handleTouch;
             touchLayer.ontouchmove = handleTouch;
             touchLayer.ontouchend = handleTouch;
@@ -240,67 +243,28 @@
             touchLayer.onmousemove = handleMouse;
             touchLayer.onmouseup = () => { leftThumb = null; rightThumb = null; };
 
-            resize();
-            window.addEventListener('resize', resize);
-            loadScores();
+            // Bind Buttons (Click works best for hybrid compatibility)
+            const bind = (id, fn) => {
+                const el = document.getElementById(id);
+                if(el) el.onclick = (e) => { e.stopPropagation(); fn(); };
+            };
             
-            log("Ready.");
+            bind('btnNormal', () => initGame('NORMAL'));
+            bind('btnHard', () => initGame('HARD'));
+            bind('btnVeryHard', () => initGame('VERY_HARD'));
+            bind('btnRetry', () => initGame(currentDifficulty));
+            bind('btnMenu', showMenu);
         }
 
-        // --- STORAGE FUNCTIONS ---
-        
-        // Ensure function name is saveScore (camelCase) to match calls
-        function saveScore(newScore) {
-            try {
-                let isBest = false;
-                if (currentDifficulty === 'NORMAL' && newScore > bestNormal) {
-                    bestNormal = newScore; localStorage.setItem('beam_balance_normal_best', bestNormal); isBest = true;
-                } else if (currentDifficulty === 'HARD' && newScore > bestHard) {
-                    bestHard = newScore; localStorage.setItem('beam_balance_hard_best', bestHard); isBest = true;
-                } else if (currentDifficulty === 'VERY_HARD' && newScore > bestVeryHard) {
-                    bestVeryHard = newScore; localStorage.setItem('beam_balance_veryhard_best', bestVeryHard); isBest = true;
-                }
-                return isBest;
-            } catch(e) { return false; }
-        }
-
-        function loadScores() {
-            try {
-                const n = localStorage.getItem('beam_balance_normal_best');
-                const h = localStorage.getItem('beam_balance_hard_best');
-                const v = localStorage.getItem('beam_balance_veryhard_best');
-                bestNormal = n ? parseInt(n) : 0;
-                bestHard = h ? parseInt(h) : 0;
-                bestVeryHard = v ? parseInt(v) : 0;
-            } catch(e) { log("Storage Disabled"); }
-            updateMenuUI();
-        }
-
-        function updateMenuUI() {
-            const b1 = document.getElementById('menuNormalBest');
-            const b2 = document.getElementById('menuHardBest');
-            const b3 = document.getElementById('menuVeryHardBest');
-            if(b1) b1.innerText = bestNormal;
-            if(b2) b2.innerText = bestHard;
-            if(b3) b3.innerText = bestVeryHard;
-        }
-
-        // --- GAME FLOW ---
-
-        window.forceBoot = function() {
-            alert("Force starting...");
-            boot();
-        };
-
+        // --- GAME LOGIC ---
         function showMenu() {
-            gameOverScreen.classList.add('hidden');
-            menuScreen.classList.remove('hidden');
+            gameOverScreen.style.display = 'none';
+            menuScreen.style.display = 'flex';
             updateMenuUI();
         }
 
         function initGame(difficulty) {
             if(isPlaying) return;
-            log("Start: " + difficulty);
             currentDifficulty = difficulty;
             
             const dl = document.getElementById('difficultyLabel');
@@ -308,15 +272,21 @@
             
             dl.innerText = difficulty;
             let best = 0;
-            if(difficulty === 'NORMAL') best = bestNormal;
-            else if(difficulty === 'HARD') best = bestHard;
-            else best = bestVeryHard;
-            hudBestScore.innerText = best;
+            
+            // Visual updates based on difficulty
+            if(difficulty === 'NORMAL') { dl.style.color = '#60A5FA'; best = bestNormal; }
+            else if(difficulty === 'HARD') { dl.style.color = '#C084FC'; best = bestHard; }
+            else { dl.style.color = '#F87171'; best = bestVeryHard; }
+            
+            hb.innerText = best;
 
             resetGameLogic();
             
-            menuScreen.classList.add('hidden');
-            gameOverScreen.classList.add('hidden');
+            // Force Hide Menus
+            menuScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            
+            // Reset Hints
             leftHint.style.opacity = 0; rightHint.style.opacity = 0;
 
             isPlaying = true;
@@ -334,31 +304,8 @@
             particles = []; leftThumb = null; rightThumb = null; beam = null; rawBeam = null;
         }
 
-        function generateHoles(startY, endY) {
-            const stepY = 50; let currentY = startY;
-            while (currentY < endY) {
-                const attempts = 20; 
-                for (let i = 0; i < attempts; i++) {
-                    const r = 25 + Math.random() * 30; 
-                    const margin = r + 10;
-                    const candidateX = margin + Math.random() * (window.innerWidth - margin * 2);
-                    const candidateY = currentY + (Math.random() * 60 - 30); 
-                    const newHole = { x: candidateX, y: candidateY, r: r, id: Math.random() };
-                    let valid = true;
-                    for (let h of holes) {
-                        if (Math.abs(h.y - newHole.y) > 200) continue;
-                        const dx = h.x - newHole.x; const dy = h.y - newHole.y;
-                        const dist = Math.sqrt(dx*dx + dy*dy);
-                        if (dist < h.r + newHole.r + MIN_GAP) { valid = false; break; }
-                    }
-                    if (valid) holes.push(newHole);
-                }
-                currentY += stepY;
-            }
-            holes.sort((a,b) => a.y - b.y);
-        }
-
         function update(dt) {
+            // Speed curve
             if (currentDifficulty === 'NORMAL') scrollSpeed = SCROLL_SPEED_BASE + (score / 4);
             else {
                 scrollSpeed = SCROLL_SPEED_BASE + (score / 1.5); 
@@ -370,11 +317,13 @@
             score = Math.floor(cameraY / 10);
             document.getElementById('scoreDisplay').innerText = score + "m";
 
+            // Holes
             holes = holes.filter(h => h.y > cameraY - 300);
             if (holes.length > 0 && holes[holes.length-1].y < cameraY + window.innerHeight + 800) {
                 generateHoles(holes[holes.length-1].y, cameraY + window.innerHeight + 1600);
             }
 
+            // Very Hard Currents
             if (currentDifficulty === 'VERY_HARD') {
                 for (let h of holes) {
                     const z = Math.floor(h.y / CURRENT_ZONE_HEIGHT);
@@ -385,6 +334,7 @@
                 }
             }
 
+            // Beam
             if (leftThumb && rightThumb) {
                 rawBeam = { x1: leftThumb.x, y1: leftThumb.y, x2: rightThumb.x, y2: rightThumb.y };
                 const rawX1 = leftThumb.x; const rawY1 = leftThumb.y + cameraY;
@@ -403,6 +353,7 @@
                 beam = null; rawBeam = null; ball.magnetized = false; 
             }
 
+            // Physics
             if (ball.magnetized && beam) {
                 const m = (beam.y2 - beam.y1) / (beam.x2 - beam.x1);
                 const targetY = m * (ball.x - beam.x1) + beam.y1;
@@ -430,6 +381,7 @@
             }
             ball.x += ball.vx * dt;
 
+            // Collisions
             for (let h of holes) {
                 const dx = ball.x - h.x; const dy = ball.y - h.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
@@ -437,4 +389,222 @@
                     const pull = 1 - (dist / (h.r+50));
                     let f = 700 * pull * dt;
                     if(ball.magnetized) f *= 0.3;
-      
+                    else { ball.vx += (h.x - ball.x)/dist * f; ball.vy += (h.y - ball.y)/dist * f; }
+                }
+                if (dist < h.r - (BALL_RADIUS * 0.4)) { lose("Consumed by Void"); return; }
+            }
+
+            const screenY = ball.y - cameraY;
+            if (screenY < -200) lose("Lost in Space"); 
+            if (screenY > window.innerHeight + 100) lose("Fell Behind"); 
+            if (ball.x < 0 || ball.x > window.innerWidth) lose("Off Screen"); 
+
+            updateParticles(dt);
+        }
+
+        function lose(reason) {
+            isPlaying = false;
+            document.getElementById('deathReason').innerText = reason;
+            document.getElementById('finalScore').innerText = score;
+            
+            const isNewRecord = saveScore(score);
+            
+            // Logic to show/hide correct Game Over UI elements
+            const newRec = document.getElementById('newRecordMessage');
+            const normTitle = document.getElementById('normalDeathTitle');
+            const endBest = document.getElementById('endBestScore');
+            
+            if (isNewRecord) {
+                newRec.style.display = 'block';
+                normTitle.style.display = 'none';
+                document.getElementById('recordModeLabel').innerText = currentDifficulty + " MODE";
+                endBest.innerText = score;
+            } else {
+                newRec.style.display = 'none';
+                normTitle.style.display = 'block';
+                let best = 0;
+                if(currentDifficulty === 'NORMAL') best = bestNormal;
+                else if(currentDifficulty === 'HARD') best = bestHard;
+                else best = bestVeryHard;
+                endBest.innerText = best;
+            }
+            
+            // Show Game Over Screen
+            gameOverScreen.style.display = 'flex';
+            leftHint.style.opacity = 1; rightHint.style.opacity = 1;
+        }
+
+        function loop(timestamp) {
+            if (!isPlaying) return;
+            const dt = (timestamp - lastTime) / 1000; lastTime = timestamp;
+            update(Math.min(dt, 0.05)); draw(); drawUI(); animationFrameId = requestAnimationFrame(loop);
+        }
+
+        function generateHoles(startY, endY) {
+            const stepY = 50; let currentY = startY;
+            while (currentY < endY) {
+                const attempts = 20; 
+                for (let i = 0; i < attempts; i++) {
+                    const r = 25 + Math.random() * 30; 
+                    const margin = r + 10;
+                    const candidateX = margin + Math.random() * (window.innerWidth - margin * 2);
+                    const candidateY = currentY + (Math.random() * 60 - 30); 
+                    const newHole = { x: candidateX, y: candidateY, r: r, id: Math.random() };
+                    let valid = true;
+                    for (let h of holes) {
+                        if (Math.abs(h.y - newHole.y) > 200) continue;
+                        const dx = h.x - newHole.x; const dy = h.y - newHole.y;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist < h.r + newHole.r + MIN_GAP) { valid = false; break; }
+                    }
+                    if (valid) holes.push(newHole);
+                }
+                currentY += stepY;
+            }
+            holes.sort((a,b) => a.y - b.y);
+        }
+
+        function spawnSparks(x, y, count) {
+            for(let i=0; i<count; i++) particles.push({ x:x, y:y, vx:(Math.random()-0.5)*200, vy:(Math.random()-0.5)*200, life:0.3+Math.random()*0.2, color:'#60A5FA' });
+        }
+        function updateParticles(dt) {
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i]; p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt;
+                if(p.life<=0) particles.splice(i,1);
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = `rgb(${Math.floor(bgColor.r)}, ${Math.floor(bgColor.g)}, ${Math.floor(bgColor.b)})`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#FFF';
+            for(let s of bgStars) {
+                const sy = (s.y - cameraY * s.speed) % canvas.height;
+                const dy = sy < 0 ? sy + canvas.height : sy;
+                ctx.globalAlpha = 0.3; ctx.beginPath(); ctx.arc(s.x, dy, s.size, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+            for(let h of holes) {
+                const sy = h.y - cameraY; if (sy < -100 || sy > canvas.height + 100) continue;
+                const grad = ctx.createRadialGradient(h.x, sy, h.r * 0.2, h.x, sy, h.r);
+                grad.addColorStop(0, '#000'); grad.addColorStop(0.7, '#450a0a'); grad.addColorStop(1, '#7f1d1d');
+                ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(h.x, sy, h.r, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = 'rgba(255,100,100,0.6)'; ctx.lineWidth = 2; ctx.setLineDash([5,5]);
+                ctx.beginPath(); ctx.arc(h.x, sy, h.r-(BALL_RADIUS*0.4), 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+                
+                if (currentDifficulty === 'VERY_HARD') {
+                    const zoneIndex = Math.floor(h.y / CURRENT_ZONE_HEIGHT);
+                    const direction = (zoneIndex % 2 === 0) ? -1 : 1;
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; ctx.beginPath();
+                    const arrowX = h.x + (direction * 10);
+                    ctx.moveTo(arrowX, sy); ctx.lineTo(h.x, sy - 5); ctx.lineTo(h.x, sy + 5); ctx.fill();
+                }
+            }
+            if(beam) {
+                const sy1 = beam.y1 - cameraY; const sy2 = beam.y2 - cameraY;
+                ctx.shadowBlur = ball.magnetized?30:20; ctx.shadowColor = ball.magnetized?'#93C5FD':'#3B82F6';
+                ctx.strokeStyle = ball.magnetized?'#60A5FA':'#3B82F6'; ctx.lineWidth = ball.magnetized?BEAM_THICKNESS+2:BEAM_THICKNESS;
+                ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(beam.x1, sy1); ctx.lineTo(beam.x2, sy2); ctx.stroke();
+                ctx.shadowBlur = 0; ctx.strokeStyle = '#FFF'; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(beam.x1, sy1); ctx.lineTo(beam.x2, sy2); ctx.stroke();
+            }
+            const bsy = ball.y - cameraY;
+            ctx.fillStyle = ball.magnetized?'#60A5FA':'#FFF'; ctx.shadowBlur = 15; ctx.shadowColor = '#FFF';
+            ctx.beginPath(); ctx.arc(ball.x, bsy, BALL_RADIUS, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
+            for(let p of particles) {
+                const psy = p.y - cameraY; ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
+                ctx.beginPath(); ctx.arc(p.x, psy, 2, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+        }
+
+        function drawUI() {
+            uiCtx.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
+            if (rawBeam) {
+                uiCtx.beginPath(); uiCtx.arc(rawBeam.x1, rawBeam.y1, 30, 0, Math.PI*2); uiCtx.strokeStyle='rgba(255,255,255,0.3)'; uiCtx.lineWidth=2; uiCtx.stroke();
+                uiCtx.beginPath(); uiCtx.arc(rawBeam.x2, rawBeam.y2, 4, 0, Math.PI*2); uiCtx.fillStyle='rgba(255,255,255,0.8)'; uiCtx.fill();
+            }
+        }
+
+        // --- INPUT ---
+        function handleTouch(e) {
+            if(e.target.classList.contains('game-btn') || e.target.closest('.game-btn')) return;
+            e.preventDefault();
+            const rect = touchLayer.getBoundingClientRect();
+            const touches = e.changedTouches;
+            const midX = window.innerWidth / 2;
+            for(let i=0; i<touches.length; i++) {
+                const t = touches[i]; const tx = t.clientX - rect.left; const ty = t.clientY - rect.top;
+                const isLeft = tx < midX;
+                if(e.type === 'touchstart') {
+                    if(isLeft && !leftThumb) leftThumb = { x:tx, y:ty, id:t.identifier };
+                    else if(!isLeft && !rightThumb) rightThumb = { x:tx, y:ty, id:t.identifier };
+                } else if(e.type === 'touchmove') {
+                    if(leftThumb && t.identifier === leftThumb.id) { leftThumb.x=tx; leftThumb.y=ty; }
+                    if(rightThumb && t.identifier === rightThumb.id) { rightThumb.x=tx; rightThumb.y=ty; }
+                } else if(e.type === 'touchend' || e.type === 'touchcancel') {
+                    if(leftThumb && t.identifier === leftThumb.id) leftThumb = null;
+                    if(rightThumb && t.identifier === rightThumb.id) rightThumb = null;
+                }
+            }
+        }
+        function handleMouse(e) {
+            const rect = touchLayer.getBoundingClientRect();
+            const mx = e.clientX - rect.left; const my = e.clientY - rect.top;
+            if(e.type === 'mousedown') {
+                const spread = 100; leftThumb = { x: mx - spread, y: my, id: 'm1' }; rightThumb = { x: mx + spread, y: my, id: 'm2' };
+            } else if(e.type === 'mousemove' && e.buttons === 1) {
+                const tilt = (mx - window.innerWidth/2) * 0.5;
+                leftThumb = { x: mx - 100, y: my - tilt, id: 'm1' }; rightThumb = { x: mx + 100, y: my + tilt, id: 'm2' };
+            } else if(e.type === 'mouseup') { leftThumb = null; rightThumb = null; }
+        }
+
+        function resize() {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            uiCanvas.width = window.innerWidth; uiCanvas.height = window.innerHeight;
+            bgStars = [];
+            for(let i=0; i<60; i++) bgStars.push({x:Math.random()*canvas.width, y:Math.random()*canvas.height, size:Math.random()*2.5, speed:0.2+Math.random()*0.5});
+        }
+
+        function saveScore(newScore) {
+            try {
+                let isBest = false;
+                if (currentDifficulty === 'NORMAL' && newScore > bestNormal) {
+                    bestNormal = newScore; localStorage.setItem('beam_balance_normal_best', bestNormal); isBest = true;
+                } else if (currentDifficulty === 'HARD' && newScore > bestHard) {
+                    bestHard = newScore; localStorage.setItem('beam_balance_hard_best', bestHard); isBest = true;
+                } else if (currentDifficulty === 'VERY_HARD' && newScore > bestVeryHard) {
+                    bestVeryHard = newScore; localStorage.setItem('beam_balance_veryhard_best', bestVeryHard); isBest = true;
+                }
+                return isBest;
+            } catch(e) { return false; }
+        }
+
+        function loadScores() {
+            try {
+                const n = localStorage.getItem('beam_balance_normal_best');
+                const h = localStorage.getItem('beam_balance_hard_best');
+                const v = localStorage.getItem('beam_balance_veryhard_best');
+                bestNormal = n ? parseInt(n) : 0;
+                bestHard = h ? parseInt(h) : 0;
+                bestVeryHard = v ? parseInt(v) : 0;
+            } catch(e) { bestNormal=0; bestHard=0; bestVeryHard=0; }
+            updateMenuUI();
+        }
+
+        function updateMenuUI() {
+            document.getElementById('menuNormalBest').innerText = bestNormal;
+            document.getElementById('menuHardBest').innerText = bestHard;
+            document.getElementById('menuVeryHardBest').innerText = bestVeryHard;
+        }
+
+        // --- BOOT ---
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            boot();
+        } else {
+            window.addEventListener('DOMContentLoaded', boot);
+            window.addEventListener('load', boot);
+        }
+    </script>
+</body>
+</html>
