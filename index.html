@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Beam Balance: Colors Swapped</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@400;700&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #0F172A;
+            touch-action: none;
+            font-family: 'Roboto', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #gameCanvas { z-index: 1; }
+        #uiCanvas { z-index: 2; pointer-events: none; }
+
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .menu-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            transition: opacity 0.3s;
+            pointer-events: auto;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .neon-text {
+            font-family: 'Orbitron', sans-serif;
+            text-shadow: 0 0 15px rgba(239, 68, 68, 0.6);
+        }
+        
+        .gold-text {
+            font-family: 'Orbitron', sans-serif;
+            color: #FBBF24;
+            text-shadow: 0 0 15px rgba(251, 191, 36, 0.6);
+        }
+
+        .zone-hint {
+            position: absolute;
+            top: 50%;
+            width: 120px;
+            height: 120px;
+            border: 2px dashed rgba(255,255,255,0.1);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255,255,255,0.2);
+            font-size: 12px;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        @keyframes pulse-gold {
+            0%, 100% { transform: scale(1); text-shadow: 0 0 20px rgba(251, 191, 36, 0.6); }
+            50% { transform: scale(1.1); text-shadow: 0 0 40px rgba(251, 191, 36, 1); }
+        }
+
+        .high-score-anim {
+            animation: pulse-gold 1.5s infinite;
+        }
+        
+        .btn-base {
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        .btn-base:active {
+            transform: scale(0.95);
+        }
+
+        .menu-container {
+            overflow-y: auto;
+            max-height: 80vh;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+    <canvas id="uiCanvas"></canvas>
+
+    <!-- Input Layer -->
+    <div id="touchLayer" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index: 5;"></div>
+
+    <!-- HUD -->
+    <div class="ui-layer">
+        <div class="flex justify-between p-6">
+            <div class="text-white text-2xl font-bold neon-text">
+                <span class="text-red-500">DANGER</span> ZONE
+            </div>
+            <div class="flex flex-col items-end">
+                <div class="text-blue-400 text-3xl font-mono font-bold" id="scoreDisplay">0m</div>
+                <div class="text-gray-500 text-sm font-mono"><span id="difficultyLabel">NORMAL</span> | BEST: <span id="hudBestScore">0</span>m</div>
+            </div>
+        </div>
+
+        <div id="leftHint" class="zone-hint" style="left: 15%">LEFT THUMB</div>
+        <div id="rightHint" class="zone-hint" style="left: 85%">RIGHT THUMB</div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="menuScreen" class="menu-screen">
+        <div class="menu-container">
+            <h1 class="text-5xl md:text-7xl text-white font-bold mb-2 neon-text tracking-widest text-center mt-10">BEAM<br><span class="text-blue-500">BALANCE</span></h1>
+            
+            <p class="text-gray-400 mb-6 text-center max-w-md px-6 text-lg leading-relaxed">
+                Magnetic Rail System Active<br>
+                <span class="text-blue-400 text-sm">(Physics: Snappy | Density: High)</span>
+            </p>
+            
+            <div class="flex flex-col gap-3 w-full max-w-xs px-4 mb-10">
+                <!-- Normal -->
+                <button id="startNormalBtn" class="btn-base w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.4)] border border-blue-400 flex flex-col items-center">
+                    <span class="text-lg font-bold tracking-wider">NORMAL</span>
+                    <span class="text-xs text-blue-200 opacity-80">BEST: <span id="menuNormalBest">0</span>m</span>
+                </button>
+
+                <!-- Hard (Now Purple) -->
+                <button id="startHardBtn" class="btn-base w-full py-3 bg-purple-900 hover:bg-purple-800 text-white rounded-lg shadow-[0_0_15px_rgba(147,51,234,0.4)] border border-purple-500 flex flex-col items-center">
+                    <span class="text-lg font-bold tracking-wider text-purple-100">HARD</span>
+                    <span class="text-xs text-purple-300 opacity-80">BEST: <span id="menuHardBest">0</span>m</span>
+                </button>
+
+                <!-- Very Hard (Now Red) -->
+                <button id="startVeryHardBtn" class="btn-base w-full py-3 bg-red-900 hover:bg-red-800 text-white rounded-lg shadow-[0_0_15px_rgba(220,38,38,0.4)] border border-red-500 flex flex-col items-center relative overflow-hidden">
+                    <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-10 animate-pulse"></div>
+                    <span class="text-lg font-bold tracking-wider text-red-100">VERY HARD</span>
+                    <span class="text-xs text-red-300 opacity-80">BEST: <span id="menuVeryHardBest">0</span>m</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameOverScreen" class="menu-screen hidden">
+        
+        <div id="newRecordMessage" class="hidden mb-6 flex flex-col items-center">
+            <div class="text-6xl mb-2">🏆</div>
+            <h2 class="text-4xl font-bold gold-text high-score-anim text-center">NEW HIGH SCORE!</h2>
+            <div class="text-yellow-500 font-mono mt-2" id="recordModeLabel">NORMAL MODE</div>
+        </div>
+
+        <h2 id="normalDeathTitle" class="text-6xl text-red-500 font-bold mb-2 neon-text">VOIDED</h2>
+        <p id="deathReason" class="text-gray-400 mb-6">Fell into a hole</p>
+        
+        <div class="text-5xl text-white mb-2 font-mono font-bold"><span id="finalScore">0</span>m</div>
+        <div class="text-xl text-gray-500 mb-8 font-mono">Mode Best: <span id="endBestScore">0</span>m</div>
+        
+        <div class="flex flex-col gap-3 w-full max-w-xs">
+            <button id="retryBtn" class="btn-base px-12 py-4 bg-green-600 hover:bg-green-500 text-white font-bold rounded-full text-xl shadow-lg">
+                RETRY
+            </button>
+            <button id="menuBtn" class="btn-base px-12 py-3 bg-transparent border border-gray-600 text-gray-400 font-bold rounded-full text-sm hover:bg-gray-800">
+                CHANGE DIFFICULTY
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- Setup ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const uiCanvas = document.getElementById('uiCanvas');
+        const uiCtx = uiCanvas.getContext('2d');
+        const touchLayer = document.getElementById('touchLayer');
+        
+        // UI Refs
+        const menuScreen = document.getElementById('menuScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const difficultyLabel = document.getElementById('difficultyLabel');
+        const hudBestScore = document.getElementById('hudBestScore');
+        
+        const menuNormalBest = document.getElementById('menuNormalBest');
+        const menuHardBest = document.getElementById('menuHardBest');
+        const menuVeryHardBest = document.getElementById('menuVeryHardBest');
+        
+        const finalScore = document.getElementById('finalScore');
+        const deathReason = document.getElementById('deathReason');
+        const endBestScore = document.getElementById('endBestScore');
+        const newRecordMessage = document.getElementById('newRecordMessage');
+        const normalDeathTitle = document.getElementById('normalDeathTitle');
+        const recordModeLabel = document.getElementById('recordModeLabel');
+        const leftHint = document.getElementById('leftHint');
+        const rightHint = document.getElementById('rightHint');
+
+        // --- Configuration ---
+        const GRAVITY = 1000;
+        const SCROLL_SPEED_BASE = 130;
+        const BALL_RADIUS = 12;
+        const BEAM_THICKNESS = 8;
+        const MIN_GAP = 24 * 2.5; 
+        const SNAP_DISTANCE = 25; 
+        
+        // PHYSICS TUNING: Snappy
+        const ROLL_BOOST = 1.8; 
+        const RAIL_FRICTION = 0.98; 
+        
+        // VOID MOVEMENT
+        const VOID_SPEED = 40; 
+        const CURRENT_ZONE_HEIGHT = 500; 
+
+        // --- State ---
+        let isPlaying = false;
+        let lastTime = 0;
+        let score = 0;
+        let scrollSpeed = SCROLL_SPEED_BASE;
+        let cameraY = 0;
+        let currentDifficulty = 'NORMAL';
+        let bgColor = { r: 15, g: 23, b: 42 }; 
+
+        // Persistent Scores
+        let bestNormal = 0;
+        let bestHard = 0;
+        let bestVeryHard = 0;
+
+        // Entities
+        let ball = { x: 0, y: 0, vx: 0, vy: 0, magnetized: false };
+        let holes = []; 
+        let particles = [];
+        let bgStars = [];
+
+        // Input
+        let leftThumb = null; 
+        let rightThumb = null; 
+        let beam = null; 
+        let rawBeam = null;
+
+        // --- Storage ---
+        function loadScores() {
+            const n = localStorage.getItem('beam_balance_normal_best');
+            const h = localStorage.getItem('beam_balance_hard_best');
+            const v = localStorage.getItem('beam_balance_veryhard_best');
+            bestNormal = n ? parseInt(n) : 0;
+            bestHard = h ? parseInt(h) : 0;
+            bestVeryHard = v ? parseInt(v) : 0;
+            updateMenuUI();
+        }
+
+        function saveScore(newScore) {
+            if (currentDifficulty === 'NORMAL') {
+                if (newScore > bestNormal) { bestNormal = newScore; localStorage.setItem('beam_balance_normal_best', bestNormal); return true; }
+            } else if (currentDifficulty === 'HARD') {
+                if (newScore > bestHard) { bestHard = newScore; localStorage.setItem('beam_balance_hard_best', bestHard); return true; }
+            } else {
+                if (newScore > bestVeryHard) { bestVeryHard = newScore; localStorage.setItem('beam_balance_veryhard_best', bestVeryHard); return true; }
+            }
+            return false;
+        }
+
+        function updateMenuUI() {
+            menuNormalBest.innerText = bestNormal;
+            menuHardBest.innerText = bestHard;
+            menuVeryHardBest.innerText = bestVeryHard;
+        }
+
+        // --- Input Handlers ---
+        function handleTouch(e) {
+            e.preventDefault();
+            const rect = touchLayer.getBoundingClientRect();
+            const touches = e.changedTouches;
+            const midX = window.innerWidth / 2;
+            for (let i = 0; i < touches.length; i++) {
+                const t = touches[i];
+                const tx = t.clientX - rect.left;
+                const ty = t.clientY - rect.top;
+                const isLeft = tx < midX;
+                if (e.type === 'touchstart') {
+                    if (isLeft && !leftThumb) leftThumb = { x: tx, y: ty, id: t.identifier };
+                    else if (!isLeft && !rightThumb) rightThumb = { x: tx, y: ty, id: t.identifier };
+                } 
+                else if (e.type === 'touchmove') {
+                    if (leftThumb && t.identifier === leftThumb.id) { leftThumb.x = tx; leftThumb.y = ty; }
+                    if (rightThumb && t.identifier === rightThumb.id) { rightThumb.x = tx; rightThumb.y = ty; }
+                }
+                else if (e.type === 'touchend' || e.type === 'touchcancel') {
+                    if (leftThumb && t.identifier === leftThumb.id) leftThumb = null;
+                    if (rightThumb && t.identifier === rightThumb.id) rightThumb = null;
+                }
+            }
+        }
+        
+        function handleMouse(e) {
+            const rect = touchLayer.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            if (e.type === 'mousedown') {
+                const spread = 100;
+                leftThumb = { x: mx - spread, y: my, id: 'm1' };
+                rightThumb = { x: mx + spread, y: my, id: 'm2' };
+            } else if (e.type === 'mousemove' && e.buttons === 1) {
+                const tilt = (mx - window.innerWidth/2) * 0.5;
+                leftThumb = { x: mx - 100, y: my - tilt, id: 'm1' };
+                rightThumb = { x: mx + 100, y: my + tilt, id: 'm2' };
+            } else if (e.type === 'mouseup') {
+                leftThumb = null;
+                rightThumb = null;
+            }
+        }
+
+        touchLayer.addEventListener('touchstart', handleTouch, { passive: false });
+        touchLayer.addEventListener('touchmove', handleTouch, { passive: false });
+        touchLayer.addEventListener('touchend', handleTouch, { passive: false });
+        touchLayer.addEventListener('touchcancel', handleTouch, { passive: false });
+        touchLayer.addEventListener('mousedown', handleMouse);
+        touchLayer.addEventListener('mousemove', handleMouse);
+        touchLayer.addEventListener('mouseup', handleMouse);
+
+        // --- Game Logic ---
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            uiCanvas.width = window.innerWidth;
+            uiCanvas.height = window.innerHeight;
+            bgStars = [];
+            for(let i=0; i<60; i++) {
+                bgStars.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 2.5,
+                    speed: 0.2 + Math.random() * 0.5
+                });
+            }
+        }
+        window.addEventListener('resize', resize);
+
+        function initGame(difficulty) {
+            resize();
+            loadScores();
+            currentDifficulty = difficulty;
+            
+            difficultyLabel.innerText = difficulty;
+            if (difficulty === 'NORMAL') difficultyLabel.className = 'text-blue-300';
+            else if (difficulty === 'HARD') difficultyLabel.className = 'text-purple-400 font-bold';
+            else difficultyLabel.className = 'text-red-400 font-bold';
+            
+            let best = 0;
+            if (difficulty === 'NORMAL') best = bestNormal;
+            else if (difficulty === 'HARD') best = bestHard;
+            else best = bestVeryHard;
+            
+            hudBestScore.innerText = best;
+
+            score = 0;
+            cameraY = 0;
+            scrollSpeed = SCROLL_SPEED_BASE;
+            bgColor = { r: 15, g: 23, b: 42 };
+
+            ball = { x: window.innerWidth/2, y: 100, vx: 0, vy: 0, magnetized: false };
+            
+            holes = [];
+            generateHoles(window.innerHeight * 0.75, window.innerHeight * 2.5);
+
+            particles = [];
+            isPlaying = true;
+            lastTime = performance.now();
+            
+            menuScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            leftHint.style.opacity = 0;
+            rightHint.style.opacity = 0;
+
+            requestAnimationFrame(loop);
+        }
+
+        function generateHoles(startY, endY) {
+            const stepY = 50; // High Density
+            let currentY = startY;
+            while (currentY < endY) {
+                const attempts = 20; 
+                for (let i = 0; i < attempts; i++) {
+                    const r = 25 + Math.random() * 30; 
+                    const margin = r + 10;
+                    const candidateX = margin + Math.random() * (window.innerWidth - margin * 2);
+                    const candidateY = currentY + (Math.random() * 60 - 30); 
+                    const newHole = { x: candidateX, y: candidateY, r: r, id: Math.random() };
+                    let valid = true;
+                    for (let h of holes) {
+                        if (Math.abs(h.y - newHole.y) > 200) continue;
+                        const dx = h.x - newHole.x;
+                        const dy = h.y - newHole.y;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist < h.r + newHole.r + MIN_GAP) { valid = false; break; }
+                    }
+                    if (valid) holes.push(newHole);
+                }
+                currentY += stepY;
+            }
+            holes.sort((a,b) => a.y - b.y);
+        }
+
+        function update(dt) {
+            // Difficulty Scaling
+            if (currentDifficulty === 'NORMAL') {
+                scrollSpeed = SCROLL_SPEED_BASE + (score / 4); 
+            } else {
+                // Hard & Very Hard share speed scaling
+                scrollSpeed = SCROLL_SPEED_BASE + (score / 1.5); 
+                const progress = Math.min(score / 500, 1); 
+                bgColor.r = 15 * (1 - progress);
+                bgColor.g = 23 * (1 - progress);
+                bgColor.b = 42 * (1 - progress);
+            }
+            
+            cameraY += scrollSpeed * dt;
+            score = Math.floor(cameraY / 10);
+            scoreDisplay.innerText = score + "m";
+
+            holes = holes.filter(h => h.y > cameraY - 300);
+            const lastHoleY = holes.length > 0 ? holes[holes.length-1].y : cameraY;
+            if (lastHoleY < cameraY + window.innerHeight + 800) {
+                generateHoles(lastHoleY, cameraY + window.innerHeight + 1600);
+            }
+
+            // --- VERY HARD MODE: VOID MOVEMENTS ---
+            if (currentDifficulty === 'VERY_HARD') {
+                for (let h of holes) {
+                    // Determine current zone
+                    const zoneIndex = Math.floor(h.y / CURRENT_ZONE_HEIGHT);
+                    // Even zones move Left, Odd zones move Right
+                    const direction = (zoneIndex % 2 === 0) ? -1 : 1;
+                    
+                    h.x += direction * VOID_SPEED * dt;
+                    
+                    // Wrap around screen
+                    if (direction === -1 && h.x < -h.r) {
+                        h.x = window.innerWidth + h.r;
+                    } else if (direction === 1 && h.x > window.innerWidth + h.r) {
+                        h.x = -h.r;
+                    }
+                }
+            }
+
+            if (leftThumb && rightThumb) {
+                rawBeam = { x1: leftThumb.x, y1: leftThumb.y, x2: rightThumb.x, y2: rightThumb.y };
+                const rawX1 = leftThumb.x;
+                const rawY1 = leftThumb.y + cameraY;
+                const rawX2 = rightThumb.x;
+                const 
