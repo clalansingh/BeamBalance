@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beam Balance: Fixed</title>
+    <title>Beam Balance v0.1.2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@400;700&display=swap');
@@ -53,7 +53,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            z-index: 50; /* Increased Z-Index to be safe */
+            z-index: 50;
             transition: opacity 0.3s;
             pointer-events: auto;
         }
@@ -102,8 +102,8 @@
         
         .btn-base {
             transition: transform 0.1s, box-shadow 0.1s;
-            cursor: pointer; /* Helpful for desktop */
-            touch-action: manipulation; /* Improves tap response */
+            cursor: pointer;
+            touch-action: manipulation;
         }
         .btn-base:active {
             transform: scale(0.95);
@@ -116,10 +116,48 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            padding-bottom: 40px;
+        }
+
+        /* DEBUG CONSOLE STYLES */
+        #debugOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: auto;
+            max-height: 50%;
+            background: rgba(127, 29, 29, 0.9);
+            color: #FECACA;
+            font-family: monospace;
+            font-size: 12px;
+            padding: 10px;
+            z-index: 9999;
+            overflow-y: auto;
+            display: none; /* Hidden by default */
+            pointer-events: auto;
+            border-bottom: 2px solid #EF4444;
+        }
+        .debug-close {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            background: #EF4444;
+            color: white;
+            border: none;
+            padding: 2px 8px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
+
+    <!-- Debug Console -->
+    <div id="debugOverlay">
+        <button class="debug-close" onclick="document.getElementById('debugOverlay').style.display='none'">X</button>
+        <strong>DEBUG LOG:</strong><br>
+        <div id="debugContent"></div>
+    </div>
 
     <canvas id="gameCanvas"></canvas>
     <canvas id="uiCanvas"></canvas>
@@ -160,19 +198,24 @@
                     <span class="text-xs text-blue-200 opacity-80">BEST: <span id="menuNormalBest">0</span>m</span>
                 </button>
 
-                <!-- Hard -->
+                <!-- Hard (Purple) -->
                 <button id="startHardBtn" class="btn-base w-full py-3 bg-purple-900 hover:bg-purple-800 text-white rounded-lg shadow-[0_0_15px_rgba(147,51,234,0.4)] border border-purple-500 flex flex-col items-center">
                     <span class="text-lg font-bold tracking-wider text-purple-100">HARD</span>
                     <span class="text-xs text-purple-300 opacity-80">BEST: <span id="menuHardBest">0</span>m</span>
                 </button>
 
-                <!-- Very Hard -->
+                <!-- Very Hard (Red) -->
                 <button id="startVeryHardBtn" class="btn-base w-full py-3 bg-red-900 hover:bg-red-800 text-white rounded-lg shadow-[0_0_15px_rgba(220,38,38,0.4)] border border-red-500 flex flex-col items-center relative overflow-hidden">
                     <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-10 animate-pulse"></div>
                     <span class="text-lg font-bold tracking-wider text-red-100">VERY HARD</span>
                     <span class="text-xs text-red-300 opacity-80">BEST: <span id="menuVeryHardBest">0</span>m</span>
                 </button>
             </div>
+        </div>
+
+        <!-- Version Number -->
+        <div class="absolute bottom-4 right-4 text-gray-600 text-xs font-mono select-none opacity-50">
+            v0.1.2
         </div>
     </div>
 
@@ -201,6 +244,22 @@
     </div>
 
     <script>
+        // --- ERROR HANDLING SYSTEM ---
+        function logError(msg) {
+            const debugOverlay = document.getElementById('debugOverlay');
+            const debugContent = document.getElementById('debugContent');
+            if (debugOverlay && debugContent) {
+                debugOverlay.style.display = 'block';
+                debugContent.innerHTML += `<div style="margin-bottom:4px; border-bottom:1px solid #7f1d1d;">&gt; ${msg}</div>`;
+            }
+            console.error(msg);
+        }
+
+        window.onerror = function(message, source, lineno, colno, error) {
+            logError(`Error: ${message} at line ${lineno}`);
+            return false;
+        };
+
         // --- Setup ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -273,7 +332,7 @@
                 bestHard = h ? parseInt(h) : 0;
                 bestVeryHard = v ? parseInt(v) : 0;
             } catch (e) {
-                console.warn("LocalStorage not available", e);
+                logError("Storage Init Failed (Incognito?): " + e.message);
                 bestNormal = 0; bestHard = 0; bestVeryHard = 0;
             }
             updateMenuUI();
@@ -289,8 +348,7 @@
                     if (newScore > bestVeryHard) { bestVeryHard = newScore; localStorage.setItem('beam_balance_veryhard_best', bestVeryHard); return true; }
                 }
             } catch (e) {
-                console.warn("Could not save score", e);
-                // Update in-memory anyway
+                // Keep silent on save fail to avoid spamming during gameplay
                 if (currentDifficulty === 'NORMAL' && newScore > bestNormal) { bestNormal = newScore; return true; }
                 if (currentDifficulty === 'HARD' && newScore > bestHard) { bestHard = newScore; return true; }
                 if (currentDifficulty === 'VERY_HARD' && newScore > bestVeryHard) { bestVeryHard = newScore; return true; }
@@ -299,14 +357,20 @@
         }
 
         function updateMenuUI() {
-            if(menuNormalBest) menuNormalBest.innerText = bestNormal;
-            if(menuHardBest) menuHardBest.innerText = bestHard;
-            if(menuVeryHardBest) menuVeryHardBest.innerText = bestVeryHard;
+            try {
+                if(menuNormalBest) menuNormalBest.innerText = bestNormal;
+                if(menuHardBest) menuHardBest.innerText = bestHard;
+                if(menuVeryHardBest) menuVeryHardBest.innerText = bestVeryHard;
+            } catch(e) {
+                logError("UI Update Failed: " + e.message);
+            }
         }
 
         // --- Input Handlers ---
         function handleTouch(e) {
-            e.preventDefault(); // Prevents scroll, but can block clicks if on wrong element
+            if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return; 
+            e.preventDefault(); 
+            
             const rect = touchLayer.getBoundingClientRect();
             const touches = e.changedTouches;
             const midX = window.innerWidth / 2;
@@ -366,42 +430,46 @@
         }
 
         function initGame(difficulty) {
-            resize();
-            loadScores();
-            currentDifficulty = difficulty;
-            
-            difficultyLabel.innerText = difficulty;
-            if (difficulty === 'NORMAL') difficultyLabel.className = 'text-blue-300';
-            else if (difficulty === 'HARD') difficultyLabel.className = 'text-purple-400 font-bold';
-            else difficultyLabel.className = 'text-red-400 font-bold';
-            
-            let best = 0;
-            if (difficulty === 'NORMAL') best = bestNormal;
-            else if (difficulty === 'HARD') best = bestHard;
-            else best = bestVeryHard;
-            
-            hudBestScore.innerText = best;
+            try {
+                resize();
+                loadScores();
+                currentDifficulty = difficulty;
+                
+                difficultyLabel.innerText = difficulty;
+                if (difficulty === 'NORMAL') difficultyLabel.className = 'text-blue-300';
+                else if (difficulty === 'HARD') difficultyLabel.className = 'text-purple-400 font-bold';
+                else difficultyLabel.className = 'text-red-400 font-bold';
+                
+                let best = 0;
+                if (difficulty === 'NORMAL') best = bestNormal;
+                else if (difficulty === 'HARD') best = bestHard;
+                else best = bestVeryHard;
+                
+                hudBestScore.innerText = best;
 
-            score = 0;
-            cameraY = 0;
-            scrollSpeed = SCROLL_SPEED_BASE;
-            bgColor = { r: 15, g: 23, b: 42 };
+                score = 0;
+                cameraY = 0;
+                scrollSpeed = SCROLL_SPEED_BASE;
+                bgColor = { r: 15, g: 23, b: 42 };
 
-            ball = { x: window.innerWidth/2, y: 100, vx: 0, vy: 0, magnetized: false };
-            
-            holes = [];
-            generateHoles(window.innerHeight * 0.75, window.innerHeight * 2.5);
+                ball = { x: window.innerWidth/2, y: 100, vx: 0, vy: 0, magnetized: false };
+                
+                holes = [];
+                generateHoles(window.innerHeight * 0.75, window.innerHeight * 2.5);
 
-            particles = [];
-            isPlaying = true;
-            lastTime = performance.now();
-            
-            menuScreen.classList.add('hidden');
-            gameOverScreen.classList.add('hidden');
-            leftHint.style.opacity = 0;
-            rightHint.style.opacity = 0;
+                particles = [];
+                isPlaying = true;
+                lastTime = performance.now();
+                
+                menuScreen.classList.add('hidden');
+                gameOverScreen.classList.add('hidden');
+                leftHint.style.opacity = 0;
+                rightHint.style.opacity = 0;
 
-            requestAnimationFrame(loop);
+                requestAnimationFrame(loop);
+            } catch (e) {
+                logError("Game Init Failed: " + e.message);
+            }
         }
 
         function generateHoles(startY, endY) {
@@ -418,55 +486,4 @@
                     let valid = true;
                     for (let h of holes) {
                         if (Math.abs(h.y - newHole.y) > 200) continue;
-                        const dx = h.x - newHole.x;
-                        const dy = h.y - newHole.y;
-                        const dist = Math.sqrt(dx*dx + dy*dy);
-                        if (dist < h.r + newHole.r + MIN_GAP) { valid = false; break; }
-                    }
-                    if (valid) holes.push(newHole);
-                }
-                currentY += stepY;
-            }
-            holes.sort((a,b) => a.y - b.y);
-        }
-
-        function update(dt) {
-            if (currentDifficulty === 'NORMAL') {
-                scrollSpeed = SCROLL_SPEED_BASE + (score / 4); 
-            } else {
-                scrollSpeed = SCROLL_SPEED_BASE + (score / 1.5); 
-                const progress = Math.min(score / 500, 1); 
-                bgColor.r = 15 * (1 - progress);
-                bgColor.g = 23 * (1 - progress);
-                bgColor.b = 42 * (1 - progress);
-            }
             
-            cameraY += scrollSpeed * dt;
-            score = Math.floor(cameraY / 10);
-            scoreDisplay.innerText = score + "m";
-
-            holes = holes.filter(h => h.y > cameraY - 300);
-            const lastHoleY = holes.length > 0 ? holes[holes.length-1].y : cameraY;
-            if (lastHoleY < cameraY + window.innerHeight + 800) {
-                generateHoles(lastHoleY, cameraY + window.innerHeight + 1600);
-            }
-
-            if (currentDifficulty === 'VERY_HARD') {
-                for (let h of holes) {
-                    const zoneIndex = Math.floor(h.y / CURRENT_ZONE_HEIGHT);
-                    const direction = (zoneIndex % 2 === 0) ? -1 : 1;
-                    h.x += direction * VOID_SPEED * dt;
-                    if (direction === -1 && h.x < -h.r) { h.x = window.innerWidth + h.r; } 
-                    else if (direction === 1 && h.x > window.innerWidth + h.r) { h.x = -h.r; }
-                }
-            }
-
-            if (leftThumb && rightThumb) {
-                rawBeam = { x1: leftThumb.x, y1: leftThumb.y, x2: rightThumb.x, y2: rightThumb.y };
-                const rawX1 = leftThumb.x;
-                const rawY1 = leftThumb.y + cameraY;
-                const rawX2 = rightThumb.x;
-                const rawY2 = rightThumb.y + cameraY;
-                const dx = rawX2 - rawX1;
-                const dy = rawY2 - rawY1;
-                const len = Math.s
