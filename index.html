@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
-<head> 
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beam Balance v0.1.3</title>
+    <title>Beam Balance v0.1.4</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@400;700&display=swap');
@@ -13,7 +13,8 @@
             padding: 0;
             overflow: hidden;
             background-color: #0F172A;
-            touch-action: none;
+            /* CRITICAL: Disable default touch actions for game, but we re-enable for menu below */
+            touch-action: none; 
             font-family: 'Roboto', sans-serif;
             user-select: none;
             -webkit-user-select: none;
@@ -55,13 +56,12 @@
             justify-content: center;
             z-index: 50;
             transition: opacity 0.3s;
-            pointer-events: auto;
+            pointer-events: auto; /* Ensure clicks pass to buttons */
         }
 
-        /* Renamed to avoid Tailwind Conflict */
-        .menu-inactive {
-            opacity: 0;
-            pointer-events: none;
+        /* Explicit display toggle helper */
+        .menu-hidden {
+            display: none !important;
         }
 
         .neon-text {
@@ -104,8 +104,11 @@
         .btn-base {
             transition: transform 0.1s, box-shadow 0.1s;
             cursor: pointer;
-            touch-action: manipulation;
+            /* CRITICAL FIX: Allow standard tap gestures on buttons */
+            touch-action: manipulation; 
             -webkit-tap-highlight-color: transparent;
+            position: relative; /* For z-index context */
+            z-index: 60;
         }
         .btn-base:active {
             transform: scale(0.95);
@@ -119,6 +122,8 @@
             flex-direction: column;
             align-items: center;
             padding-bottom: 40px;
+            /* CRITICAL FIX: Allow vertical scrolling on the menu */
+            touch-action: pan-y; 
         }
         
         #debugOverlay {
@@ -130,6 +135,8 @@
             padding: 10px;
             display: none;
             pointer-events: none;
+            font-family: monospace;
+            font-size: 10px;
         }
     </style>
 </head>
@@ -140,7 +147,7 @@
     <canvas id="gameCanvas"></canvas>
     <canvas id="uiCanvas"></canvas>
 
-    <!-- Input Layer -->
+    <!-- Input Layer (Behind menu, Above game) -->
     <div id="touchLayer" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index: 5;"></div>
 
     <!-- HUD -->
@@ -192,12 +199,12 @@
         </div>
 
         <div class="absolute bottom-4 right-4 text-gray-600 text-xs font-mono select-none opacity-50">
-            v0.1.3
+            v0.1.4
         </div>
     </div>
 
     <!-- Game Over Screen -->
-    <div id="gameOverScreen" class="menu-screen hidden">
+    <div id="gameOverScreen" class="menu-screen menu-hidden">
         <div id="newRecordMessage" class="hidden mb-6 flex flex-col items-center">
             <div class="text-6xl mb-2">🏆</div>
             <h2 class="text-4xl font-bold gold-text high-score-anim text-center">NEW HIGH SCORE!</h2>
@@ -316,7 +323,6 @@
                     if (newScore > bestVeryHard) { bestVeryHard = newScore; localStorage.setItem('beam_balance_veryhard_best', bestVeryHard); return true; }
                 }
             } catch (e) {
-                // Fallback
                 if (currentDifficulty === 'NORMAL' && newScore > bestNormal) { bestNormal = newScore; return true; }
                 if (currentDifficulty === 'HARD' && newScore > bestHard) { bestHard = newScore; return true; }
                 if (currentDifficulty === 'VERY_HARD' && newScore > bestVeryHard) { bestVeryHard = newScore; return true; }
@@ -332,9 +338,7 @@
 
         // --- Input Handlers ---
         function handleTouch(e) {
-            // Important: Let button clicks pass through
-            if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
-            
+            if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return; 
             e.preventDefault(); 
             
             const rect = touchLayer.getBoundingClientRect();
@@ -397,6 +401,9 @@
 
         function initGame(difficulty) {
             try {
+                // Ensure double-tap doesn't fire
+                if(isPlaying) return;
+                
                 resize();
                 loadScores();
                 currentDifficulty = difficulty;
@@ -427,12 +434,10 @@
                 isPlaying = true;
                 lastTime = performance.now();
                 
-                // CRITICAL FIX: Use menu-inactive class AND explicit display none
-                menuScreen.classList.add('menu-inactive');
-                // Force hidden after transition
-                setTimeout(() => { if(isPlaying) menuScreen.style.display = 'none'; }, 300);
-
-                gameOverScreen.classList.add('hidden'); // This uses Tailwind 'hidden' (display:none)
+                // HIDE MENU Forcefully
+                menuScreen.classList.add('menu-hidden');
+                gameOverScreen.classList.add('menu-hidden'); 
+                
                 leftHint.style.opacity = 0;
                 rightHint.style.opacity = 0;
 
@@ -474,11 +479,4 @@
             } else {
                 scrollSpeed = SCROLL_SPEED_BASE + (score / 1.5); 
                 const progress = Math.min(score / 500, 1); 
-                bgColor.r = 15 * (1 - progress);
-                bgColor.g = 23 * (1 - progress);
-                bgColor.b = 42 * (1 - progress);
-            }
-            
-            cameraY += scrollSpeed * dt;
-            score = Math.floor(cameraY / 10);
-            scoreDisplay.innerText = 
+                bgColor.r = 15 * (1 
