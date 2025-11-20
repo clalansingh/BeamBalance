@@ -3,23 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beam Balance v0.1.5</title>
+    <title>Beam Balance v0.1.6</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@400;700&display=swap');
 
-        /* FORCE RESET */
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
+            margin: 0; padding: 0; overflow: hidden;
             background-color: #0F172A;
-            touch-action: none; /* Critical for game */
+            touch-action: none;
             font-family: 'Roboto', sans-serif;
-            user-select: none;
-            -webkit-user-select: none;
+            user-select: none; -webkit-user-select: none;
         }
 
         canvas { display: block; position: absolute; top: 0; left: 0; }
@@ -36,10 +32,8 @@
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(15, 23, 42, 0.98);
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            z-index: 100; /* High Z-Index */
-            transition: opacity 0.2s;
-            pointer-events: auto; /* MUST be auto to click buttons */
-            touch-action: pan-y; /* Allow scrolling menu */
+            z-index: 100; transition: opacity 0.2s;
+            pointer-events: auto; touch-action: pan-y;
         }
 
         .menu-container {
@@ -65,33 +59,31 @@
         }
         .high-score-anim { animation: pulse-gold 1.5s infinite; }
         
-        /* BUTTON STYLES - Inline for safety */
+        /* BUTTON STYLES (Inline fallback included in HTML) */
         .game-btn {
             width: 100%; max-width: 300px; margin-bottom: 15px; padding: 15px;
             border-radius: 10px; border: 1px solid; cursor: pointer;
             display: flex; flex-direction: column; align-items: center;
-            transition: transform 0.1s;
-            position: relative; z-index: 101;
-            touch-action: manipulation; /* Allows tap */
+            transition: transform 0.1s; position: relative; z-index: 101;
+            touch-action: manipulation; background-color: #333; color: white;
         }
         .game-btn:active { transform: scale(0.96); }
 
-        /* SYSTEM LOG */
         #systemLog {
             position: absolute; top: 0; left: 0; padding: 5px;
             color: #FFFF00; font-family: monospace; font-size: 10px;
-            z-index: 9999; pointer-events: none; opacity: 0.7;
+            z-index: 9999; pointer-events: none; opacity: 0.8;
+            background: rgba(0,0,0,0.5);
         }
     </style>
 </head>
 <body>
 
-    <div id="systemLog">Initializing...</div>
+    <div id="systemLog">Waiting for DOM...</div>
 
     <canvas id="gameCanvas"></canvas>
     <canvas id="uiCanvas"></canvas>
 
-    <!-- Input Layer: Z-index 5 (Below Menu, Above Game) -->
     <div id="touchLayer" style="position:absolute; top:0; left:0; width:100%; height:100%; z-index: 5;"></div>
 
     <div class="ui-layer">
@@ -115,31 +107,27 @@
                 <span class="text-blue-400 text-sm">(Physics: Snappy | Density: High)</span>
             </p>
             
-            <!-- INLINE EVENT HANDLERS for Maximum Robustness -->
-            
-            <!-- Normal -->
-            <div class="game-btn bg-blue-600 text-white border-blue-400 shadow-[0_0_15px_rgba(37,99,235,0.4)]"
-                 onpointerdown="startGame('NORMAL', event)">
-                <span class="text-lg font-bold tracking-wider">NORMAL</span>
-                <span class="text-xs text-blue-200 opacity-80">BEST: <span id="menuNormalBest">0</span>m</span>
-            </div>
+            <div class="flex flex-col gap-3 w-full max-w-xs px-4 mb-10">
+                <!-- Normal -->
+                <div id="btnNormal" class="game-btn" style="background-color: #2563EB; border-color: #60A5FA;">
+                    <span class="text-lg font-bold tracking-wider">NORMAL</span>
+                    <span class="text-xs text-blue-200 opacity-80">BEST: <span id="menuNormalBest">0</span>m</span>
+                </div>
 
-            <!-- Hard -->
-            <div class="game-btn bg-purple-900 text-white border-purple-500 shadow-[0_0_15px_rgba(147,51,234,0.4)]"
-                 onpointerdown="startGame('HARD', event)">
-                <span class="text-lg font-bold tracking-wider text-purple-100">HARD</span>
-                <span class="text-xs text-purple-300 opacity-80">BEST: <span id="menuHardBest">0</span>m</span>
-            </div>
+                <!-- Hard -->
+                <div id="btnHard" class="game-btn" style="background-color: #581C87; border-color: #A855F7;">
+                    <span class="text-lg font-bold tracking-wider text-purple-100">HARD</span>
+                    <span class="text-xs text-purple-300 opacity-80">BEST: <span id="menuHardBest">0</span>m</span>
+                </div>
 
-            <!-- Very Hard -->
-            <div class="game-btn bg-red-900 text-white border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.4)]"
-                 onpointerdown="startGame('VERY_HARD', event)">
-                <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-10 animate-pulse pointer-events-none"></div>
-                <span class="text-lg font-bold tracking-wider text-red-100">VERY HARD</span>
-                <span class="text-xs text-red-300 opacity-80">BEST: <span id="menuVeryHardBest">0</span>m</span>
+                <!-- Very Hard -->
+                <div id="btnVeryHard" class="game-btn" style="background-color: #7F1D1D; border-color: #EF4444;">
+                    <span class="text-lg font-bold tracking-wider text-red-100">VERY HARD</span>
+                    <span class="text-xs text-red-300 opacity-80">BEST: <span id="menuVeryHardBest">0</span>m</span>
+                </div>
             </div>
         </div>
-        <div class="absolute bottom-4 right-4 text-gray-600 text-xs font-mono select-none opacity-50">v0.1.5</div>
+        <div class="absolute bottom-4 right-4 text-gray-600 text-xs font-mono select-none opacity-50">v0.1.6</div>
     </div>
 
     <!-- GAME OVER SCREEN -->
@@ -156,21 +144,11 @@
         <div class="text-5xl text-white mb-2 font-mono font-bold"><span id="finalScore">0</span>m</div>
         <div class="text-xl text-gray-500 mb-8 font-mono">Mode Best: <span id="endBestScore">0</span>m</div>
         
-        <!-- Retry Button -->
-        <div class="game-btn bg-green-600 text-white font-bold text-xl shadow-lg"
-             onpointerdown="retryGame(event)">
-            RETRY
-        </div>
-        
-        <!-- Menu Button -->
-        <div class="game-btn bg-transparent border-gray-600 text-gray-400 font-bold text-sm hover:bg-gray-800"
-             onpointerdown="goToMenu(event)">
-            CHANGE DIFFICULTY
-        </div>
+        <div id="btnRetry" class="game-btn" style="background-color: #16A34A; border-color: #4ADE80;">RETRY</div>
+        <div id="btnMenu" class="game-btn" style="background-color: transparent; border-color: #4B5563; color: #9CA3AF;">CHANGE DIFFICULTY</div>
     </div>
 
     <script>
-        // --- SYSTEM LOGGER ---
         const sysLog = document.getElementById('systemLog');
         function log(msg) {
             console.log(msg);
@@ -178,22 +156,11 @@
         }
         window.onerror = function(msg) { log("ERR: " + msg); };
 
-        log("Script Starting...");
+        // --- GLOBAL VARIABLES (Declarations only) ---
+        let canvas, ctx, uiCanvas, uiCtx, touchLayer;
+        let menuScreen, gameOverScreen, leftHint, rightHint;
+        let animationFrameId;
 
-        // --- GLOBAL VARIABLES ---
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const uiCanvas = document.getElementById('uiCanvas');
-        const uiCtx = uiCanvas.getContext('2d');
-        const touchLayer = document.getElementById('touchLayer');
-
-        // UI Elements
-        const menuScreen = document.getElementById('menuScreen');
-        const gameOverScreen = document.getElementById('gameOverScreen');
-        const leftHint = document.getElementById('leftHint');
-        const rightHint = document.getElementById('rightHint');
-
-        // Config
         const GRAVITY = 1000;
         const SCROLL_SPEED_BASE = 130;
         const BALL_RADIUS = 12;
@@ -205,24 +172,13 @@
         const VOID_SPEED = 40;
         const CURRENT_ZONE_HEIGHT = 500;
 
-        // Game State
-        let isPlaying = false;
-        let lastTime = 0;
-        let score = 0;
-        let scrollSpeed = SCROLL_SPEED_BASE;
-        let cameraY = 0;
+        let isPlaying = false, lastTime = 0, score = 0, scrollSpeed = 0, cameraY = 0;
         let currentDifficulty = 'NORMAL';
         let bgColor = { r: 15, g: 23, b: 42 };
-        let animationFrameId;
-
-        // Scores
         let bestNormal = 0, bestHard = 0, bestVeryHard = 0;
 
-        // Objects
         let ball = { x: 0, y: 0, vx: 0, vy: 0, magnetized: false };
-        let holes = [];
-        let particles = [];
-        let bgStars = [];
+        let holes = [], particles = [], bgStars = [];
         let leftThumb = null, rightThumb = null, beam = null, rawBeam = null;
 
         // --- CORE FUNCTIONS ---
@@ -235,8 +191,8 @@
                 bestNormal = n ? parseInt(n) : 0;
                 bestHard = h ? parseInt(h) : 0;
                 bestVeryHard = v ? parseInt(v) : 0;
-                updateMenuUI();
-            } catch(e) { log("Storage Disabled"); }
+            } catch(e) { log("Storage Read Error"); }
+            updateMenuUI();
         }
 
         function saveScore(newScore) {
@@ -254,70 +210,54 @@
         }
 
         function updateMenuUI() {
-            document.getElementById('menuNormalBest').innerText = bestNormal;
-            document.getElementById('menuHardBest').innerText = bestHard;
-            document.getElementById('menuVeryHardBest').innerText = bestVeryHard;
+            const b1 = document.getElementById('menuNormalBest');
+            const b2 = document.getElementById('menuHardBest');
+            const b3 = document.getElementById('menuVeryHardBest');
+            if(b1) b1.innerText = bestNormal;
+            if(b2) b2.innerText = bestHard;
+            if(b3) b3.innerText = bestVeryHard;
         }
 
-        // --- PUBLIC BUTTON HANDLERS (Global Scope for HTML access) ---
-        
-        window.startGame = function(difficulty, e) {
-            if(e) e.stopPropagation(); // Stop click affecting game layer
-            log("Starting " + difficulty);
-            
-            currentDifficulty = difficulty;
-            
-            // Update HUD Labels
-            const diffLabel = document.getElementById('difficultyLabel');
-            const hudBest = document.getElementById('hudBestScore');
-            diffLabel.innerText = difficulty;
-            
-            if (difficulty === 'NORMAL') { diffLabel.className = 'text-blue-300'; hudBest.innerText = bestNormal; }
-            else if (difficulty === 'HARD') { diffLabel.className = 'text-purple-400 font-bold'; hudBest.innerText = bestHard; }
-            else { diffLabel.className = 'text-red-400 font-bold'; hudBest.innerText = bestVeryHard; }
+        function resize() {
+            if(!canvas) return;
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            uiCanvas.width = window.innerWidth; uiCanvas.height = window.innerHeight;
+            bgStars = [];
+            for(let i=0; i<60; i++) bgStars.push({x:Math.random()*canvas.width, y:Math.random()*canvas.height, size:Math.random()*2.5, speed:0.2+Math.random()*0.5});
+        }
 
-            resetGame();
+        function initGame(difficulty) {
+            log("Starting: " + difficulty);
+            if(isPlaying) return;
+
+            currentDifficulty = difficulty;
+            const dl = document.getElementById('difficultyLabel');
+            const hb = document.getElementById('hudBestScore');
             
-            // Hide Menus
+            dl.innerText = difficulty;
+            if(difficulty === 'NORMAL') { dl.className='text-blue-300'; hb.innerText=bestNormal; }
+            else if(difficulty === 'HARD') { dl.className='text-purple-400 font-bold'; hb.innerText=bestHard; }
+            else { dl.className='text-red-400 font-bold'; hb.innerText=bestVeryHard; }
+
+            resetGameLogic();
+            
             menuScreen.style.display = 'none';
             gameOverScreen.style.display = 'none';
-            
-            // Reset Hints
-            leftHint.style.opacity = 0;
-            rightHint.style.opacity = 0;
+            leftHint.style.opacity = 0; rightHint.style.opacity = 0;
 
             isPlaying = true;
             lastTime = performance.now();
             cancelAnimationFrame(animationFrameId);
             requestAnimationFrame(loop);
-        };
+        }
 
-        window.retryGame = function(e) {
-            window.startGame(currentDifficulty, e);
-        };
-
-        window.goToMenu = function(e) {
-            if(e) e.stopPropagation();
-            log("Menu Requested");
-            gameOverScreen.style.display = 'none';
-            menuScreen.style.display = 'flex';
-            updateMenuUI();
-        };
-
-        // --- GAME LOGIC ---
-
-        function resetGame() {
+        function resetGameLogic() {
             resize();
-            score = 0; cameraY = 0;
-            scrollSpeed = SCROLL_SPEED_BASE;
+            score = 0; cameraY = 0; scrollSpeed = SCROLL_SPEED_BASE;
             bgColor = { r: 15, g: 23, b: 42 };
             ball = { x: window.innerWidth/2, y: 100, vx: 0, vy: 0, magnetized: false };
-            
-            holes = [];
-            generateHoles(window.innerHeight * 0.75, window.innerHeight * 2.5);
-            
-            particles = [];
-            leftThumb = null; rightThumb = null; beam = null; rawBeam = null;
+            holes = []; generateHoles(window.innerHeight * 0.75, window.innerHeight * 2.5);
+            particles = []; leftThumb = null; rightThumb = null; beam = null; rawBeam = null;
         }
 
         function generateHoles(startY, endY) {
@@ -345,42 +285,34 @@
         }
 
         function update(dt) {
-            // Speed & Difficulty Logic
-            if (currentDifficulty === 'NORMAL') {
-                scrollSpeed = SCROLL_SPEED_BASE + (score / 4); 
-            } else {
+            if (currentDifficulty === 'NORMAL') scrollSpeed = SCROLL_SPEED_BASE + (score / 4);
+            else {
                 scrollSpeed = SCROLL_SPEED_BASE + (score / 1.5); 
-                const progress = Math.min(score / 500, 1); 
-                bgColor.r = 15 * (1 - progress); bgColor.g = 23 * (1 - progress); bgColor.b = 42 * (1 - progress);
+                const p = Math.min(score / 500, 1); 
+                bgColor.r = 15 * (1 - p); bgColor.g = 23 * (1 - p); bgColor.b = 42 * (1 - p);
             }
             
             cameraY += scrollSpeed * dt;
             score = Math.floor(cameraY / 10);
             document.getElementById('scoreDisplay').innerText = score + "m";
 
-            // Hole Management
             holes = holes.filter(h => h.y > cameraY - 300);
             if (holes.length > 0 && holes[holes.length-1].y < cameraY + window.innerHeight + 800) {
                 generateHoles(holes[holes.length-1].y, cameraY + window.innerHeight + 1600);
-            } else if (holes.length === 0) {
-                generateHoles(cameraY + window.innerHeight, cameraY + window.innerHeight + 1000);
             }
 
-            // Very Hard Movement
             if (currentDifficulty === 'VERY_HARD') {
                 for (let h of holes) {
-                    const zoneIndex = Math.floor(h.y / CURRENT_ZONE_HEIGHT);
-                    const direction = (zoneIndex % 2 === 0) ? -1 : 1;
-                    h.x += direction * VOID_SPEED * dt;
-                    if (direction === -1 && h.x < -h.r) h.x = window.innerWidth + h.r; 
-                    else if (direction === 1 && h.x > window.innerWidth + h.r) h.x = -h.r;
+                    const z = Math.floor(h.y / CURRENT_ZONE_HEIGHT);
+                    const d = (z % 2 === 0) ? -1 : 1;
+                    h.x += d * VOID_SPEED * dt;
+                    if (d === -1 && h.x < -h.r) h.x = window.innerWidth + h.r; 
+                    else if (d === 1 && h.x > window.innerWidth + h.r) h.x = -h.r;
                 }
             }
 
-            // Beam Logic
             if (leftThumb && rightThumb) {
                 rawBeam = { x1: leftThumb.x, y1: leftThumb.y, x2: rightThumb.x, y2: rightThumb.y };
-                // Beam math omitted for brevity, assuming standard linear projection
                 const rawX1 = leftThumb.x; const rawY1 = leftThumb.y + cameraY;
                 const rawX2 = rightThumb.x; const rawY2 = rightThumb.y + cameraY;
                 const dx = rawX2 - rawX1; const dy = rawY2 - rawY1;
@@ -390,14 +322,13 @@
                 beam = {
                     x1: rawX1 - unitX * EXTENSION, y1: rawY1 - unitY * EXTENSION,
                     x2: rawX2 + unitX * EXTENSION, y2: rawY2 + unitY * EXTENSION,
-                    nx: -unitY, ny: unitX, len: len + (EXTENSION * 2)
+                    nx: -unitY, ny: unitX, len: len + (EXTENSION * 2),
                 };
                 if (beam.ny > 0) { beam.nx = -beam.nx; beam.ny = -beam.ny; }
             } else {
                 beam = null; rawBeam = null; ball.magnetized = false; 
             }
 
-            // Physics
             if (ball.magnetized && beam) {
                 const m = (beam.y2 - beam.y1) / (beam.x2 - beam.x1);
                 const targetY = m * (ball.x - beam.x1) + beam.y1;
@@ -425,7 +356,6 @@
             }
             ball.x += ball.vx * dt;
 
-            // Hole Collisions
             for (let h of holes) {
                 const dx = ball.x - h.x; const dy = ball.y - h.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
@@ -438,4 +368,50 @@
                 if (dist < h.r - (BALL_RADIUS * 0.4)) { lose("Consumed by Void"); return; }
             }
 
-            const screenY = ball.y - camera
+            const screenY = ball.y - cameraY;
+            if (screenY < -200) lose("Lost in Space"); 
+            if (screenY > window.innerHeight + 100) lose("Fell Behind"); 
+            if (ball.x < 0 || ball.x > window.innerWidth) lose("Off Screen"); 
+
+            updateParticles(dt);
+        }
+
+        function lose(reason) {
+            isPlaying = false;
+            log("Dead: " + reason);
+            document.getElementById('deathReason').innerText = reason;
+            document.getElementById('finalScore').innerText = score;
+            
+            const isNewRecord = saveScore(score);
+            const newRecMsg = document.getElementById('newRecordMessage');
+            const normTitle = document.getElementById('normalDeathTitle');
+            const bestLabel = document.getElementById('endBestScore');
+            
+            if (isNewRecord) {
+                newRecMsg.classList.remove('hidden');
+                normTitle.classList.add('hidden');
+                document.getElementById('recordModeLabel').innerText = currentDifficulty + " MODE";
+                bestLabel.innerText = score;
+            } else {
+                newRecMsg.classList.add('hidden');
+                normTitle.classList.remove('hidden');
+                bestLabel.innerText = (currentDifficulty==='NORMAL'?bestNormal:(currentDifficulty==='HARD'?bestHard:bestVeryHard));
+            }
+            
+            gameOverScreen.style.display = 'flex';
+            leftHint.style.opacity = 1; rightHint.style.opacity = 1;
+        }
+
+        function spawnSparks(x, y, count) {
+            for(let i=0; i<count; i++) particles.push({ x:x, y:y, vx:(Math.random()-0.5)*200, vy:(Math.random()-0.5)*200, life:0.3+Math.random()*0.2, color:'#60A5FA' });
+        }
+        function updateParticles(dt) {
+            for(let i=particles.length-1; i>=0; i--) {
+                let p = particles[i]; p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt;
+                if(p.life<=0) particles.splice(i,1);
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = `rgb(${Math.floor(bgColor.r)}, ${Math.floor(bgColor.g)}, ${Math.floor(bgColor.b)})`;
+            ct
