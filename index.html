@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beam Balance v0.1.6</title>
+    <title>Beam Balance v0.1.7</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@400;700&display=swap');
@@ -59,7 +59,7 @@
         }
         .high-score-anim { animation: pulse-gold 1.5s infinite; }
         
-        /* BUTTON STYLES (Inline fallback included in HTML) */
+        /* BUTTON STYLES */
         .game-btn {
             width: 100%; max-width: 300px; margin-bottom: 15px; padding: 15px;
             border-radius: 10px; border: 1px solid; cursor: pointer;
@@ -79,7 +79,28 @@
 </head>
 <body>
 
-    <div id="systemLog">Waiting for DOM...</div>
+    <!-- SCRIPT 1: ERROR LOGGER (Runs Instantly) -->
+    <script>
+        window.logQueue = [];
+        function sysLog(msg) {
+            window.logQueue.push(msg);
+            const el = document.getElementById('systemLog');
+            if(el) el.innerText = "SYS: " + msg;
+            console.log(msg);
+        }
+        window.onerror = function(msg, source, lineno) {
+            const err = `ERR: ${msg} (${lineno})`;
+            const el = document.getElementById('systemLog');
+            if(el) {
+                el.innerText = err;
+                el.style.color = "red";
+                el.style.backgroundColor = "rgba(0,0,0,0.9)";
+            }
+        };
+        sysLog("Boot Sequence Started...");
+    </script>
+
+    <div id="systemLog">Booting...</div>
 
     <canvas id="gameCanvas"></canvas>
     <canvas id="uiCanvas"></canvas>
@@ -127,7 +148,7 @@
                 </div>
             </div>
         </div>
-        <div class="absolute bottom-4 right-4 text-gray-600 text-xs font-mono select-none opacity-50">v0.1.6</div>
+        <div class="absolute bottom-4 right-4 text-gray-600 text-xs font-mono select-none opacity-50">v0.1.7</div>
     </div>
 
     <!-- GAME OVER SCREEN -->
@@ -148,15 +169,9 @@
         <div id="btnMenu" class="game-btn" style="background-color: transparent; border-color: #4B5563; color: #9CA3AF;">CHANGE DIFFICULTY</div>
     </div>
 
+    <!-- SCRIPT 2: GAME ENGINE -->
     <script>
-        const sysLog = document.getElementById('systemLog');
-        function log(msg) {
-            console.log(msg);
-            if(sysLog) sysLog.innerText = "SYS: " + msg;
-        }
-        window.onerror = function(msg) { log("ERR: " + msg); };
-
-        // --- GLOBAL VARIABLES (Declarations only) ---
+        // --- GLOBAL VARIABLES (Declarations) ---
         let canvas, ctx, uiCanvas, uiCtx, touchLayer;
         let menuScreen, gameOverScreen, leftHint, rightHint;
         let animationFrameId;
@@ -191,7 +206,7 @@
                 bestNormal = n ? parseInt(n) : 0;
                 bestHard = h ? parseInt(h) : 0;
                 bestVeryHard = v ? parseInt(v) : 0;
-            } catch(e) { log("Storage Read Error"); }
+            } catch(e) { sysLog("Storage Skipped"); }
             updateMenuUI();
         }
 
@@ -227,7 +242,7 @@
         }
 
         function initGame(difficulty) {
-            log("Starting: " + difficulty);
+            sysLog("Game Start: " + difficulty);
             if(isPlaying) return;
 
             currentDifficulty = difficulty;
@@ -378,7 +393,6 @@
 
         function lose(reason) {
             isPlaying = false;
-            log("Dead: " + reason);
             document.getElementById('deathReason').innerText = reason;
             document.getElementById('finalScore').innerText = score;
             
@@ -403,15 +417,4 @@
         }
 
         function spawnSparks(x, y, count) {
-            for(let i=0; i<count; i++) particles.push({ x:x, y:y, vx:(Math.random()-0.5)*200, vy:(Math.random()-0.5)*200, life:0.3+Math.random()*0.2, color:'#60A5FA' });
-        }
-        function updateParticles(dt) {
-            for(let i=particles.length-1; i>=0; i--) {
-                let p = particles[i]; p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt;
-                if(p.life<=0) particles.splice(i,1);
-            }
-        }
-
-        function draw() {
-            ctx.fillStyle = `rgb(${Math.floor(bgColor.r)}, ${Math.floor(bgColor.g)}, ${Math.floor(bgColor.b)})`;
-            ct
+            for(let i=0; i<count; i++) particles.push({ x:x, y:y, vx:(Math.random()-0.5)*200, vy:(Math.random()-0.5)*200, life:0.3+Math.random()*0.2, 
