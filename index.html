@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beam Balance v0.1.14</title>
+    <title>Beam Balance v0.1.15</title>
     <style>
         /* Fallback font system */
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@400;700&display=swap');
@@ -47,7 +47,8 @@
         /* SCREENS */
         .screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(15, 23, 42, 0.98);
+            /* UPDATED: Solid background to fully blank out the game */
+            background: #0F172A; 
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             z-index: 100; 
             pointer-events: auto; 
@@ -123,7 +124,7 @@
     <div id="menuScreen" class="screen">
         <div class="menu-container">
             <div class="title">BEAM<br><span class="highlight-blue">BALANCE</span></div>
-            <div class="subtitle">Magnetic Rail System<br>v0.1.14</div>
+            <div class="subtitle">Magnetic Rail System<br>v0.1.15</div>
             
             <div class="btn-container">
                 <!-- Normal -->
@@ -285,8 +286,6 @@
             // Force Hide Menus
             menuScreen.style.display = 'none';
             gameOverScreen.style.display = 'none';
-            
-            // Reset Hints
             leftHint.style.opacity = 0; rightHint.style.opacity = 0;
 
             isPlaying = true;
@@ -304,8 +303,31 @@
             particles = []; leftThumb = null; rightThumb = null; beam = null; rawBeam = null;
         }
 
+        function generateHoles(startY, endY) {
+            const stepY = 50; let currentY = startY;
+            while (currentY < endY) {
+                const attempts = 20; 
+                for (let i = 0; i < attempts; i++) {
+                    const r = 25 + Math.random() * 30; 
+                    const margin = r + 10;
+                    const candidateX = margin + Math.random() * (window.innerWidth - margin * 2);
+                    const candidateY = currentY + (Math.random() * 60 - 30); 
+                    const newHole = { x: candidateX, y: candidateY, r: r, id: Math.random() };
+                    let valid = true;
+                    for (let h of holes) {
+                        if (Math.abs(h.y - newHole.y) > 200) continue;
+                        const dx = h.x - newHole.x; const dy = h.y - newHole.y;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist < h.r + newHole.r + MIN_GAP) { valid = false; break; }
+                    }
+                    if (valid) holes.push(newHole);
+                }
+                currentY += stepY;
+            }
+            holes.sort((a,b) => a.y - b.y);
+        }
+
         function update(dt) {
-            // Speed curve
             if (currentDifficulty === 'NORMAL') scrollSpeed = SCROLL_SPEED_BASE + (score / 4);
             else {
                 scrollSpeed = SCROLL_SPEED_BASE + (score / 1.5); 
@@ -317,13 +339,11 @@
             score = Math.floor(cameraY / 10);
             document.getElementById('scoreDisplay').innerText = score + "m";
 
-            // Holes
             holes = holes.filter(h => h.y > cameraY - 300);
             if (holes.length > 0 && holes[holes.length-1].y < cameraY + window.innerHeight + 800) {
                 generateHoles(holes[holes.length-1].y, cameraY + window.innerHeight + 1600);
             }
 
-            // Very Hard Currents
             if (currentDifficulty === 'VERY_HARD') {
                 for (let h of holes) {
                     const z = Math.floor(h.y / CURRENT_ZONE_HEIGHT);
@@ -334,7 +354,6 @@
                 }
             }
 
-            // Beam
             if (leftThumb && rightThumb) {
                 rawBeam = { x1: leftThumb.x, y1: leftThumb.y, x2: rightThumb.x, y2: rightThumb.y };
                 const rawX1 = leftThumb.x; const rawY1 = leftThumb.y + cameraY;
@@ -347,13 +366,13 @@
                     x1: rawX1 - unitX * EXTENSION, y1: rawY1 - unitY * EXTENSION,
                     x2: rawX2 + unitX * EXTENSION, y2: rawY2 + unitY * EXTENSION,
                     nx: -unitY, ny: unitX, len: len + (EXTENSION * 2),
+                    slope: dy/dx
                 };
                 if (beam.ny > 0) { beam.nx = -beam.nx; beam.ny = -beam.ny; }
             } else {
                 beam = null; rawBeam = null; ball.magnetized = false; 
             }
 
-            // Physics
             if (ball.magnetized && beam) {
                 const m = (beam.y2 - beam.y1) / (beam.x2 - beam.x1);
                 const targetY = m * (ball.x - beam.x1) + beam.y1;
@@ -381,7 +400,6 @@
             }
             ball.x += ball.vx * dt;
 
-            // Collisions
             for (let h of holes) {
                 const dx = ball.x - h.x; const dy = ball.y - h.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
@@ -432,36 +450,6 @@
             // Show Game Over Screen
             gameOverScreen.style.display = 'flex';
             leftHint.style.opacity = 1; rightHint.style.opacity = 1;
-        }
-
-        function loop(timestamp) {
-            if (!isPlaying) return;
-            const dt = (timestamp - lastTime) / 1000; lastTime = timestamp;
-            update(Math.min(dt, 0.05)); draw(); drawUI(); animationFrameId = requestAnimationFrame(loop);
-        }
-
-        function generateHoles(startY, endY) {
-            const stepY = 50; let currentY = startY;
-            while (currentY < endY) {
-                const attempts = 20; 
-                for (let i = 0; i < attempts; i++) {
-                    const r = 25 + Math.random() * 30; 
-                    const margin = r + 10;
-                    const candidateX = margin + Math.random() * (window.innerWidth - margin * 2);
-                    const candidateY = currentY + (Math.random() * 60 - 30); 
-                    const newHole = { x: candidateX, y: candidateY, r: r, id: Math.random() };
-                    let valid = true;
-                    for (let h of holes) {
-                        if (Math.abs(h.y - newHole.y) > 200) continue;
-                        const dx = h.x - newHole.x; const dy = h.y - newHole.y;
-                        const dist = Math.sqrt(dx*dx + dy*dy);
-                        if (dist < h.r + newHole.r + MIN_GAP) { valid = false; break; }
-                    }
-                    if (valid) holes.push(newHole);
-                }
-                currentY += stepY;
-            }
-            holes.sort((a,b) => a.y - b.y);
         }
 
         function spawnSparks(x, y, count) {
@@ -526,7 +514,12 @@
             }
         }
 
-        // --- INPUT ---
+        function loop(timestamp) {
+            if (!isPlaying) return;
+            const dt = (timestamp - lastTime) / 1000; lastTime = timestamp;
+            update(Math.min(dt, 0.05)); draw(); drawUI(); animationFrameId = requestAnimationFrame(loop);
+        }
+
         function handleTouch(e) {
             if(e.target.classList.contains('game-btn') || e.target.closest('.game-btn')) return;
             e.preventDefault();
@@ -548,6 +541,7 @@
                 }
             }
         }
+
         function handleMouse(e) {
             const rect = touchLayer.getBoundingClientRect();
             const mx = e.clientX - rect.left; const my = e.clientY - rect.top;
