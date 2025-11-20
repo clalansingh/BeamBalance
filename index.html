@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beam Balance v0.1.2</title>
+    <title>Beam Balance v0.1.3</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@400;700&display=swap');
@@ -58,7 +58,8 @@
             pointer-events: auto;
         }
 
-        .hidden {
+        /* Renamed to avoid Tailwind Conflict */
+        .menu-inactive {
             opacity: 0;
             pointer-events: none;
         }
@@ -104,6 +105,7 @@
             transition: transform 0.1s, box-shadow 0.1s;
             cursor: pointer;
             touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
         }
         .btn-base:active {
             transform: scale(0.95);
@@ -118,46 +120,22 @@
             align-items: center;
             padding-bottom: 40px;
         }
-
-        /* DEBUG CONSOLE STYLES */
+        
         #debugOverlay {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: auto;
-            max-height: 50%;
-            background: rgba(127, 29, 29, 0.9);
-            color: #FECACA;
-            font-family: monospace;
-            font-size: 12px;
-            padding: 10px;
-            z-index: 9999;
-            overflow-y: auto;
-            display: none; /* Hidden by default */
-            pointer-events: auto;
-            border-bottom: 2px solid #EF4444;
-        }
-        .debug-close {
-            position: absolute;
-            top: 5px;
-            right: 10px;
-            background: #EF4444;
+            top: 0; left: 0; width: 100%;
+            background: rgba(100, 0, 0, 0.8);
             color: white;
-            border: none;
-            padding: 2px 8px;
-            cursor: pointer;
+            z-index: 9999;
+            padding: 10px;
+            display: none;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
 
-    <!-- Debug Console -->
-    <div id="debugOverlay">
-        <button class="debug-close" onclick="document.getElementById('debugOverlay').style.display='none'">X</button>
-        <strong>DEBUG LOG:</strong><br>
-        <div id="debugContent"></div>
-    </div>
+    <div id="debugOverlay"></div>
 
     <canvas id="gameCanvas"></canvas>
     <canvas id="uiCanvas"></canvas>
@@ -198,13 +176,13 @@
                     <span class="text-xs text-blue-200 opacity-80">BEST: <span id="menuNormalBest">0</span>m</span>
                 </button>
 
-                <!-- Hard (Purple) -->
+                <!-- Hard -->
                 <button id="startHardBtn" class="btn-base w-full py-3 bg-purple-900 hover:bg-purple-800 text-white rounded-lg shadow-[0_0_15px_rgba(147,51,234,0.4)] border border-purple-500 flex flex-col items-center">
                     <span class="text-lg font-bold tracking-wider text-purple-100">HARD</span>
                     <span class="text-xs text-purple-300 opacity-80">BEST: <span id="menuHardBest">0</span>m</span>
                 </button>
 
-                <!-- Very Hard (Red) -->
+                <!-- Very Hard -->
                 <button id="startVeryHardBtn" class="btn-base w-full py-3 bg-red-900 hover:bg-red-800 text-white rounded-lg shadow-[0_0_15px_rgba(220,38,38,0.4)] border border-red-500 flex flex-col items-center relative overflow-hidden">
                     <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-10 animate-pulse"></div>
                     <span class="text-lg font-bold tracking-wider text-red-100">VERY HARD</span>
@@ -213,9 +191,8 @@
             </div>
         </div>
 
-        <!-- Version Number -->
         <div class="absolute bottom-4 right-4 text-gray-600 text-xs font-mono select-none opacity-50">
-            v0.1.2
+            v0.1.3
         </div>
     </div>
 
@@ -244,21 +221,13 @@
     </div>
 
     <script>
-        // --- ERROR HANDLING SYSTEM ---
-        function logError(msg) {
-            const debugOverlay = document.getElementById('debugOverlay');
-            const debugContent = document.getElementById('debugContent');
-            if (debugOverlay && debugContent) {
-                debugOverlay.style.display = 'block';
-                debugContent.innerHTML += `<div style="margin-bottom:4px; border-bottom:1px solid #7f1d1d;">&gt; ${msg}</div>`;
-            }
-            console.error(msg);
+        function logError(e) {
+            const d = document.getElementById('debugOverlay');
+            d.style.display = 'block';
+            d.innerHTML += e + '<br>';
+            console.error(e);
         }
-
-        window.onerror = function(message, source, lineno, colno, error) {
-            logError(`Error: ${message} at line ${lineno}`);
-            return false;
-        };
+        window.onerror = function(msg) { logError(msg); };
 
         // --- Setup ---
         const canvas = document.getElementById('gameCanvas');
@@ -332,7 +301,6 @@
                 bestHard = h ? parseInt(h) : 0;
                 bestVeryHard = v ? parseInt(v) : 0;
             } catch (e) {
-                logError("Storage Init Failed (Incognito?): " + e.message);
                 bestNormal = 0; bestHard = 0; bestVeryHard = 0;
             }
             updateMenuUI();
@@ -348,7 +316,7 @@
                     if (newScore > bestVeryHard) { bestVeryHard = newScore; localStorage.setItem('beam_balance_veryhard_best', bestVeryHard); return true; }
                 }
             } catch (e) {
-                // Keep silent on save fail to avoid spamming during gameplay
+                // Fallback
                 if (currentDifficulty === 'NORMAL' && newScore > bestNormal) { bestNormal = newScore; return true; }
                 if (currentDifficulty === 'HARD' && newScore > bestHard) { bestHard = newScore; return true; }
                 if (currentDifficulty === 'VERY_HARD' && newScore > bestVeryHard) { bestVeryHard = newScore; return true; }
@@ -357,18 +325,16 @@
         }
 
         function updateMenuUI() {
-            try {
-                if(menuNormalBest) menuNormalBest.innerText = bestNormal;
-                if(menuHardBest) menuHardBest.innerText = bestHard;
-                if(menuVeryHardBest) menuVeryHardBest.innerText = bestVeryHard;
-            } catch(e) {
-                logError("UI Update Failed: " + e.message);
-            }
+            if(menuNormalBest) menuNormalBest.innerText = bestNormal;
+            if(menuHardBest) menuHardBest.innerText = bestHard;
+            if(menuVeryHardBest) menuVeryHardBest.innerText = bestVeryHard;
         }
 
         // --- Input Handlers ---
         function handleTouch(e) {
-            if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return; 
+            // Important: Let button clicks pass through
+            if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+            
             e.preventDefault(); 
             
             const rect = touchLayer.getBoundingClientRect();
@@ -461,14 +427,18 @@
                 isPlaying = true;
                 lastTime = performance.now();
                 
-                menuScreen.classList.add('hidden');
-                gameOverScreen.classList.add('hidden');
+                // CRITICAL FIX: Use menu-inactive class AND explicit display none
+                menuScreen.classList.add('menu-inactive');
+                // Force hidden after transition
+                setTimeout(() => { if(isPlaying) menuScreen.style.display = 'none'; }, 300);
+
+                gameOverScreen.classList.add('hidden'); // This uses Tailwind 'hidden' (display:none)
                 leftHint.style.opacity = 0;
                 rightHint.style.opacity = 0;
 
                 requestAnimationFrame(loop);
-            } catch (e) {
-                logError("Game Init Failed: " + e.message);
+            } catch(e) {
+                logError("Init Failed: " + e);
             }
         }
 
@@ -486,4 +456,29 @@
                     let valid = true;
                     for (let h of holes) {
                         if (Math.abs(h.y - newHole.y) > 200) continue;
+                        const dx = h.x - newHole.x;
+                        const dy = h.y - newHole.y;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist < h.r + newHole.r + MIN_GAP) { valid = false; break; }
+                    }
+                    if (valid) holes.push(newHole);
+                }
+                currentY += stepY;
+            }
+            holes.sort((a,b) => a.y - b.y);
+        }
+
+        function update(dt) {
+            if (currentDifficulty === 'NORMAL') {
+                scrollSpeed = SCROLL_SPEED_BASE + (score / 4); 
+            } else {
+                scrollSpeed = SCROLL_SPEED_BASE + (score / 1.5); 
+                const progress = Math.min(score / 500, 1); 
+                bgColor.r = 15 * (1 - progress);
+                bgColor.g = 23 * (1 - progress);
+                bgColor.b = 42 * (1 - progress);
+            }
             
+            cameraY += scrollSpeed * dt;
+            score = Math.floor(cameraY / 10);
+            scoreDisplay.innerText = 
