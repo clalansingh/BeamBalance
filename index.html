@@ -233,7 +233,7 @@
         const VOID_SPEED = 40;         
         const CURRENT_ZONE_HEIGHT = 500; 
         
-        const VERSION = "v0.2.8"; // Bumped version
+        const VERSION = "v0.2.9"; // Bumped version
 
         // Power-Up Constants
         const POWERUP_FREQ_PIXELS = 100 * 10; // 100m (1m = 10px) = 1000px
@@ -690,7 +690,14 @@
             let color = '#475569'; // Empty color
 
             // SVG Definitions
-            const shieldSVG = `<svg viewBox="0 0 24 24" width="32" height="32" fill="#EF4444"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>`;
+            // Knight's shield with partition
+            const shieldSVG = `<svg viewBox="0 0 24 24" width="32" height="32">
+                <!-- Left Half (Base Color) -->
+                <path d="M12 2 L4 2 L4 13 C4 17 7 20 12 22 Z" fill="#EF4444"/>
+                <!-- Right Half (Darker Color for partition effect) -->
+                <path d="M12 2 L20 2 L20 13 C20 17 17 20 12 22 Z" fill="#B91C1C"/>
+            </svg>`;
+            
             const slowSVG = `<svg viewBox="0 0 24 24" width="32" height="32" fill="#EAB308"><path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.07 4.74 14.12 4 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>`;
             const teleportSVG = `<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#06B6D4" stroke-width="2"><path d="M12 4c4.418 0 8 1.79 8 4s-3.582 4-8 4-8-1.79-8-4 3.582-4 8-4z"/><path d="M12 12c4.418 0 8 1.79 8 4s-3.582 4-8 4-8-1.79-8-4 3.582-4 8-4z"/></svg>`;
 
@@ -787,13 +794,24 @@
                 ctx.scale(iconScale, iconScale);
 
                 if (p.type === 'SHIELD') {
+                    // Left Half (Base color c = #EF4444)
                     ctx.fillStyle = c;
                     ctx.beginPath();
-                    ctx.moveTo(0, -15);
-                    ctx.quadraticCurveTo(15, -15, 15, 0);
-                    ctx.quadraticCurveTo(15, 15, 0, 25);
-                    ctx.quadraticCurveTo(-15, 15, -15, 0);
-                    ctx.quadraticCurveTo(-15, -15, 0, -15);
+                    ctx.moveTo(0, -15); // Top center
+                    ctx.lineTo(-12, -15); // Top left
+                    ctx.lineTo(-12, 5); // Side down straight
+                    ctx.quadraticCurveTo(-12, 18, 0, 25); // Curve to tip
+                    ctx.lineTo(0, -15); // Back to top center
+                    ctx.fill();
+
+                    // Right Half (Darker color)
+                    ctx.fillStyle = '#B91C1C'; // Darker red contrast
+                    ctx.beginPath();
+                    ctx.moveTo(0, -15); // Top center
+                    ctx.lineTo(12, -15); // Top right
+                    ctx.lineTo(12, 5); // Side down straight
+                    ctx.quadraticCurveTo(12, 18, 0, 25); // Curve to tip
+                    ctx.lineTo(0, -15); // Back to top center
                     ctx.fill();
                 } else if (p.type === 'SLOW') {
                     ctx.fillStyle = c;
