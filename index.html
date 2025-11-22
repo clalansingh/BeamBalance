@@ -233,7 +233,7 @@
         const VOID_SPEED = 40;         
         const CURRENT_ZONE_HEIGHT = 500; 
         
-        const VERSION = "v0.2.7"; // Bumped version
+        const VERSION = "v0.2.8"; // Bumped version
 
         // Power-Up Constants
         const POWERUP_FREQ_PIXELS = 100 * 10; // 100m (1m = 10px) = 1000px
@@ -636,6 +636,7 @@
                     if (shieldActive) {
                         // Shield Save
                         shieldActive = false;
+                        inventory = null; // FIX: Clear inventory explicitly
                         updateInventoryUI();
                         spawnSparks(h.x, h.y, 20, '#EF4444'); // Explosion
                         holes.splice(i, 1); // Destroy hole
