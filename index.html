@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Beam Balance v0.1.15</title>
+    <title>Beam Balance</title> <!-- Title is set dynamically via JavaScript now -->
     <style>
         /* Fallback font system */
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@400;700&display=swap');
@@ -124,7 +124,8 @@
     <div id="menuScreen" class="screen">
         <div class="menu-container">
             <div class="title">BEAM<br><span class="highlight-blue">BALANCE</span></div>
-            <div class="subtitle">Magnetic Rail System<br>v0.1.15</div>
+            <!-- Version number is now dynamically injected here -->
+            <div class="subtitle">Magnetic Rail System<br><span id="versionDisplay"></span></div> 
             
             <div class="btn-container">
                 <!-- Normal -->
@@ -231,6 +232,9 @@
         const VOID_SPEED = 40;         // Horizontal speed of voids in VERY_HARD mode
         const CURRENT_ZONE_HEIGHT = 500; // Vertical distance for void movement zones (VERY_HARD)
 
+        // --- Game Version Constant ---
+        const VERSION = "v0.2.0"; // Define the version centrally.
+
         // =================================================================
         // --- GLOBAL GAME STATE & CONFIG ---
         // =================================================================
@@ -293,6 +297,10 @@
             resize();
             window.addEventListener('resize', resize);
             loadScores(); // Load existing high scores
+            
+            // Set dynamic version display for title and menu screen.
+            document.title = `Beam Balance ${VERSION}`;
+            document.getElementById('versionDisplay').innerText = VERSION;
 
             // 3. Bind inputs
             touchLayer.ontouchstart = handleTouch;
