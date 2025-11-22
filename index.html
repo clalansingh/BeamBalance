@@ -452,7 +452,7 @@
             if (currentDifficulty === 'NORMAL') scrollSpeed = SCROLL_SPEED_BASE + (score / 4);
             else {
                 // Harder modes accelerate scroll faster
-                scrollSpeed = SCROLL_SPEED_BASE + (score / 1.5); 
+                scrollSpeed = SCROLL_SPEED_BASE + (score / 2); 
                 // Color ramp to black/red for higher difficulty
                 const p = Math.min(score / 500, 1); 
                 bgColor.r = 15 * (1 - p); bgColor.g = 23 * (1 - p); bgColor.b = 42 * (1 - p);
