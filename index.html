@@ -233,7 +233,7 @@
         const VOID_SPEED = 40;         
         const CURRENT_ZONE_HEIGHT = 500; 
         
-        const VERSION = "v0.2.4"; // Bumped version
+        const VERSION = "v0.2.5"; // Bumped version
 
         // Power-Up Constants
         const POWERUP_FREQ_PIXELS = 100 * 10; // 100m (1m = 10px) = 1000px
@@ -688,17 +688,22 @@
             let html = '';
             let color = '#475569'; // Empty color
 
+            // SVG Definitions
+            const shieldSVG = `<svg viewBox="0 0 24 24" width="32" height="32" fill="#EF4444"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>`;
+            const slowSVG = `<svg viewBox="0 0 24 24" width="32" height="32" fill="#EAB308"><path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.07 4.74 14.12 4 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>`;
+            const teleportSVG = `<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#06B6D4" stroke-width="2"><path d="M12 4c4.418 0 8 1.79 8 4s-3.582 4-8 4-8-1.79-8-4 3.582-4 8-4z"/><path d="M12 12c4.418 0 8 1.79 8 4s-3.582 4-8 4-8-1.79-8-4 3.582-4 8-4z"/></svg>`;
+
             // Prioritize displaying shield status if active
             if (shieldActive) {
-                html = '<span class="inv-icon" style="color:#EF4444">S</span>';
+                html = shieldSVG;
                 color = '#7F1D1D';
             } else if (inventory) {
                 if (inventory === 'SLOW') {
-                    html = '<span class="inv-icon" style="color:#EAB308">Z</span>';
+                    html = slowSVG;
                     html += '<div class="inv-hint" style="position:absolute; bottom: -25px; width: 100px; color:#EAB308; font-weight:bold;">ACTIVATE BEAM</div>';
                     color = '#713F12';
                 } else if (inventory === 'TELEPORT') {
-                    html = '<span class="inv-icon" style="color:#06B6D4">T</span>';
+                    html = teleportSVG;
                     html += '<div class="inv-hint" style="position:absolute; bottom: -25px; width: 100px; color:#06B6D4; font-weight:bold;">TAP TO WARP</div>';
                     color = '#155E75';
                 }
@@ -763,10 +768,9 @@
 
                 // Color based on type
                 let c = '#FFF';
-                let lbl = '?';
-                if(p.type === 'SHIELD') { c = '#EF4444'; lbl = 'S'; }
-                else if(p.type === 'TELEPORT') { c = '#06B6D4'; lbl = 'T'; }
-                else if(p.type === 'SLOW') { c = '#EAB308'; lbl = 'Z'; }
+                if(p.type === 'SHIELD') c = '#EF4444'; 
+                else if(p.type === 'TELEPORT') c = '#06B6D4'; 
+                else if(p.type === 'SLOW') c = '#EAB308';
 
                 // Glow
                 ctx.shadowBlur = 10; ctx.shadowColor = c;
@@ -775,12 +779,38 @@
                 ctx.beginPath(); ctx.arc(p.x, sy, p.r, 0, Math.PI*2);
                 ctx.fill(); ctx.stroke();
 
-                // Label
-                ctx.shadowBlur = 0;
-                ctx.fillStyle = c;
-                ctx.font = 'bold 16px Orbitron';
-                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText(lbl, p.x, sy + 1);
+                // Icons (Drawn directly)
+                ctx.save();
+                ctx.translate(p.x, sy);
+                const iconScale = 0.6; 
+                ctx.scale(iconScale, iconScale);
+
+                if (p.type === 'SHIELD') {
+                    ctx.fillStyle = c;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -15);
+                    ctx.quadraticCurveTo(15, -15, 15, 0);
+                    ctx.quadraticCurveTo(15, 15, 0, 25);
+                    ctx.quadraticCurveTo(-15, 15, -15, 0);
+                    ctx.quadraticCurveTo(-15, -15, 0, -15);
+                    ctx.fill();
+                } else if (p.type === 'SLOW') {
+                    ctx.fillStyle = c;
+                    // Stopwatch body
+                    ctx.beginPath(); ctx.arc(0, 2, 14, 0, Math.PI*2); ctx.fill();
+                    // Button
+                    ctx.fillRect(-3, -18, 6, 4);
+                    // Hands
+                    ctx.strokeStyle = '#0F172A'; ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.moveTo(0, 2); ctx.lineTo(0, -8); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, 2); ctx.lineTo(6, 2); ctx.stroke();
+                } else if (p.type === 'TELEPORT') {
+                    ctx.strokeStyle = c; ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.ellipse(0, 0, 18, 8, Math.PI/4, 0, Math.PI*2); ctx.stroke();
+                    ctx.beginPath(); ctx.ellipse(0, 0, 18, 8, -Math.PI/4, 0, Math.PI*2); ctx.stroke();
+                }
+
+                ctx.restore();
             }
 
             // Voids
