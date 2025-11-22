@@ -233,13 +233,13 @@
         const VOID_SPEED = 40;         
         const CURRENT_ZONE_HEIGHT = 500; 
         
-        const VERSION = "v0.2.9"; // Bumped version
+        const VERSION = "v0.2.10"; // Bumped version
 
         // Power-Up Constants
         const POWERUP_FREQ_PIXELS = 100 * 10; // 100m (1m = 10px) = 1000px
         const POWERUP_TYPES = [
             // prob is cumulative threshold
-            { type: 'SHIELD', color: '#EF4444', label: 'S', prob: 0.50 },
+            { type: 'SHIELD', color: '#3B82F6', label: 'S', prob: 0.50 }, // Changed to Blue
             { type: 'TELEPORT', color: '#06B6D4', label: 'T', prob: 0.75 }, // 50% to 75% = 25% chance
             { type: 'SLOW', color: '#EAB308', label: 'Z', prob: 1.00 }      // 75% to 100% = 25% chance
         ];
@@ -638,7 +638,7 @@
                         shieldActive = false;
                         inventory = null; // FIX: Clear inventory explicitly
                         updateInventoryUI();
-                        spawnSparks(h.x, h.y, 20, '#EF4444'); // Explosion
+                        spawnSparks(h.x, h.y, 20, '#3B82F6'); // Explosion Blue
                         holes.splice(i, 1); // Destroy hole
                         // Push ball away slightly to prevent instant death on next frame if multiple holes overlap (rare)
                         ball.vy = -300; 
@@ -663,8 +663,8 @@
                 if (p.type === 'SHIELD') {
                     shieldActive = true;
                     inventory = 'SHIELD'; // Set inventory for UI display purposes
-                    spawnSparks(p.x, p.y, 10, '#EF4444');
-                    spawnSparks(ball.x, ball.y, 10, '#EF4444'); // Show feedback on ball
+                    spawnSparks(p.x, p.y, 10, '#3B82F6');
+                    spawnSparks(ball.x, ball.y, 10, '#3B82F6'); // Show feedback on ball
                 } else {
                     inventory = p.type;
                     spawnSparks(p.x, p.y, 10, '#FFF');
@@ -693,9 +693,9 @@
             // Knight's shield with partition
             const shieldSVG = `<svg viewBox="0 0 24 24" width="32" height="32">
                 <!-- Left Half (Base Color) -->
-                <path d="M12 2 L4 2 L4 13 C4 17 7 20 12 22 Z" fill="#EF4444"/>
+                <path d="M12 2 L4 2 L4 13 C4 17 7 20 12 22 Z" fill="#3B82F6"/>
                 <!-- Right Half (Darker Color for partition effect) -->
-                <path d="M12 2 L20 2 L20 13 C20 17 17 20 12 22 Z" fill="#B91C1C"/>
+                <path d="M12 2 L20 2 L20 13 C20 17 17 20 12 22 Z" fill="#1D4ED8"/>
             </svg>`;
             
             const slowSVG = `<svg viewBox="0 0 24 24" width="32" height="32" fill="#EAB308"><path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.07 4.74 14.12 4 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>`;
@@ -704,7 +704,7 @@
             // Prioritize displaying shield status if active
             if (shieldActive) {
                 html = shieldSVG;
-                color = '#7F1D1D';
+                color = '#172554';
             } else if (inventory) {
                 if (inventory === 'SLOW') {
                     html = slowSVG;
@@ -776,7 +776,7 @@
 
                 // Color based on type
                 let c = '#FFF';
-                if(p.type === 'SHIELD') c = '#EF4444'; 
+                if(p.type === 'SHIELD') c = '#3B82F6'; 
                 else if(p.type === 'TELEPORT') c = '#06B6D4'; 
                 else if(p.type === 'SLOW') c = '#EAB308';
 
@@ -794,7 +794,7 @@
                 ctx.scale(iconScale, iconScale);
 
                 if (p.type === 'SHIELD') {
-                    // Left Half (Base color c = #EF4444)
+                    // Left Half (Base color c = #3B82F6)
                     ctx.fillStyle = c;
                     ctx.beginPath();
                     ctx.moveTo(0, -15); // Top center
@@ -805,7 +805,7 @@
                     ctx.fill();
 
                     // Right Half (Darker color)
-                    ctx.fillStyle = '#B91C1C'; // Darker red contrast
+                    ctx.fillStyle = '#1D4ED8'; // Darker blue contrast
                     ctx.beginPath();
                     ctx.moveTo(0, -15); // Top center
                     ctx.lineTo(12, -15); // Top right
@@ -876,8 +876,8 @@
             
             // Shield Effect
             if (shieldActive) {
-                ctx.shadowBlur = 20; ctx.shadowColor = '#EF4444';
-                ctx.fillStyle = '#FCA5A5';
+                ctx.shadowBlur = 20; ctx.shadowColor = '#3B82F6';
+                ctx.fillStyle = '#93C5FD';
             } else {
                 ctx.fillStyle = ball.magnetized?'#60A5FA':'#FFF'; 
                 ctx.shadowBlur = 15; ctx.shadowColor = '#FFF';
@@ -887,7 +887,7 @@
             
             // Shield Ring
             if (shieldActive) {
-                ctx.strokeStyle = 'rgba(239, 68, 68, 0.5)';
+                ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
                 ctx.lineWidth = 3;
                 ctx.beginPath(); ctx.arc(ball.x, bsy, BALL_RADIUS + 5, 0, Math.PI*2); ctx.stroke();
             }
