@@ -241,7 +241,7 @@
         const CURRENT_ZONE_HEIGHT = 500; // Vertical distance for void movement zones (VERY_HARD)
 
         // --- Game Version Constant ---
-        const VERSION = "v0.2.1"; // Define the version centrally.
+        const VERSION = "v0.2.2"; // Updated version number centrally.
 
         // =================================================================
         // --- GLOBAL GAME STATE & CONFIG ---
@@ -465,10 +465,13 @@
          */
         function update(dt) {
             // 1. SCROLLING AND DIFFICULTY RAMP
-            if (currentDifficulty === 'NORMAL') scrollSpeed = SCROLL_SPEED_BASE + (score / 4);
-            else {
-                // Harder modes accelerate scroll faster
-                scrollSpeed = SCROLL_SPEED_BASE + (score / 2); 
+            if (currentDifficulty === 'NORMAL') {
+                // Slower acceleration for balanced play (Divisor 4.0)
+                scrollSpeed = SCROLL_SPEED_BASE + (score / 4.0);
+            } else { // HARD or VERY_HARD
+                // Faster acceleration rate (Divisor 2.0)
+                scrollSpeed = SCROLL_SPEED_BASE + (score / 2.0); 
+                
                 // Color ramp to black/red for higher difficulty
                 const p = Math.min(score / 500, 1); 
                 bgColor.r = 15 * (1 - p); bgColor.g = 23 * (1 - p); bgColor.b = 42 * (1 - p);
