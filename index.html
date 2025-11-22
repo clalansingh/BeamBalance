@@ -219,7 +219,7 @@
         }
         
         // =================================================================
-        // --- AUDIO SYSTEM (Lightsaber Synth) ---
+        // --- AUDIO SYSTEM ---
         // =================================================================
         let audioCtx = null;
         let humOsc = null;
@@ -234,20 +234,19 @@
                 if (!AudioContext) return;
                 audioCtx = new AudioContext();
                 
-                // Create nodes
+                // --- Beam Hum Nodes ---
                 humOsc = audioCtx.createOscillator();
                 humOsc.type = 'sawtooth';
-                humOsc.frequency.value = 60; // Base rumble pitch
+                humOsc.frequency.value = 60; 
 
                 humFilter = audioCtx.createBiquadFilter();
                 humFilter.type = 'lowpass';
-                humFilter.Q.value = 5; // Resonance for the "whoosh" character
-                humFilter.frequency.value = 100; // Starts closed
+                humFilter.Q.value = 5; 
+                humFilter.frequency.value = 100; 
 
                 humGain = audioCtx.createGain();
-                humGain.gain.value = 0; // Starts silent
+                humGain.gain.value = 0; 
 
-                // Connect graph
                 humOsc.connect(humFilter);
                 humFilter.connect(humGain);
                 humGain.connect(audioCtx.destination);
@@ -262,32 +261,94 @@
 
         function updateAudio(speed, hasBeam) {
             if (!audioCtx || !audioInitialized) return;
-            
-            // Resume if suspended (browser policy)
             if (audioCtx.state === 'suspended') audioCtx.resume();
 
             const now = audioCtx.currentTime;
 
             if (hasBeam && !teleportMode) {
-                // Calculate target values based on speed
-                // Speed is typically 0 to ~2000 px/s
-                // Map speed to filter frequency and gain
-                
-                // Normalize speed (clamp at 1500 for max effect)
                 const normalizedSpeed = Math.min(speed, 1500) / 1500;
-
-                // Filter: 150Hz (idle) to 800Hz (fast)
                 const targetFreq = 150 + (normalizedSpeed * 650);
-                
-                // Gain: 0.05 (idle) to 0.2 (fast) - keep it subtle
                 const targetGain = 0.05 + (normalizedSpeed * 0.15);
 
                 humFilter.frequency.setTargetAtTime(targetFreq, now, 0.1);
                 humGain.gain.setTargetAtTime(targetGain, now, 0.1);
             } else {
-                // Fade out
                 humGain.gain.setTargetAtTime(0, now, 0.1);
             }
+        }
+
+        function playPop() {
+            if (!audioCtx || !audioInitialized) return;
+            const t = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, t);
+            osc.frequency.exponentialRampToValueAtTime(100, t + 0.1);
+            
+            gain.gain.setValueAtTime(0.3, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(t);
+            osc.stop(t + 0.1);
+        }
+
+        function playDeath() {
+            if (!audioCtx || !audioInitialized) return;
+            const t = audioCtx.currentTime;
+            
+            // 1. Warp Part (Sawtooth)
+            const osc = audioCtx.createOscillator();
+            const oscGain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, t);
+            osc.frequency.linearRampToValueAtTime(50, t + 0.5); 
+            
+            const lfo = audioCtx.createOscillator();
+            lfo.type = 'square';
+            lfo.frequency.value = 20;
+            const lfoGain = audioCtx.createGain();
+            lfoGain.gain.value = 50;
+            lfo.connect(lfoGain);
+            lfoGain.connect(osc.frequency);
+            lfo.start(t);
+            lfo.stop(t + 0.5);
+
+            oscGain.gain.setValueAtTime(0.3, t);
+            oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+            
+            osc.connect(oscGain);
+            oscGain.connect(audioCtx.destination);
+            osc.start(t);
+            osc.stop(t + 0.5);
+
+            // 2. Explosion Part (Noise)
+            const bufferSize = audioCtx.sampleRate * 0.5;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+            
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            
+            const noiseFilter = audioCtx.createBiquadFilter();
+            noiseFilter.type = 'lowpass';
+            noiseFilter.frequency.setValueAtTime(1000, t);
+            noiseFilter.frequency.exponentialRampToValueAtTime(100, t + 0.4);
+            
+            const noiseGain = audioCtx.createGain();
+            noiseGain.gain.setValueAtTime(0.5, t);
+            noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+            
+            noise.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(audioCtx.destination);
+            noise.start(t);
         }
 
         // =================================================================
@@ -305,7 +366,7 @@
         const VOID_SPEED = 40;         
         const CURRENT_ZONE_HEIGHT = 500; 
         
-        const VERSION = "v0.2.13"; // Bumped version
+        const VERSION = "v0.2.14"; // Bumped version
 
         // Power-Up Constants
         const POWERUP_FREQ_PIXELS = 100 * 10; // 100m (1m = 10px) = 1000px
@@ -774,6 +835,7 @@
                         holes.splice(i, 1); 
                         ball.vy = -300; 
                     } else {
+                        playDeath(); // Play sound on death
                         lose("Consumed by Void"); 
                         return; 
                     }
@@ -791,6 +853,7 @@
 
         function collectPowerUp(p) {
             if (inventory === null && !shieldActive) {
+                playPop(); // Sound effect
                 if (p.type === 'SHIELD') {
                     shieldActive = true;
                     inventory = 'SHIELD'; 
