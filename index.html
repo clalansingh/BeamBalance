@@ -221,6 +221,12 @@
         // =================================================================
         // --- AUDIO SYSTEM ---
         // =================================================================
+        
+        // --- Background Music Config ---
+        // UPDATE THESE FILENAMES TO MATCH YOUR REPO
+        const MUSIC_TRACKS = ['track1.mp3', 'track2.mp3', 'track3.mp3', 'track4.mp3', 'track5.mp3'];
+        let bgm = null;
+
         let audioCtx = null;
         let humOsc = null;
         let humFilter = null;
@@ -256,6 +262,28 @@
                 console.log("Audio Initialized");
             } catch (e) {
                 console.log("Audio Init Failed", e);
+            }
+        }
+
+        function playRandomMusic() {
+            if (bgm) {
+                bgm.pause();
+                bgm.currentTime = 0;
+            }
+            // Pick random
+            const track = MUSIC_TRACKS[Math.floor(Math.random() * MUSIC_TRACKS.length)];
+            bgm = new Audio(track);
+            bgm.volume = 0.4; // Lower volume so SFX are heard
+            bgm.play().catch(e => console.log("Music play failed (interaction needed?)", e));
+            
+            // Loop to next random track when done
+            bgm.addEventListener('ended', playRandomMusic);
+        }
+
+        function stopMusic() {
+            if (bgm) {
+                bgm.pause();
+                bgm.currentTime = 0;
             }
         }
 
@@ -366,7 +394,7 @@
         const VOID_SPEED = 40;         
         const CURRENT_ZONE_HEIGHT = 500; 
         
-        const VERSION = "v0.2.14"; // Bumped version
+        const VERSION = "v0.2.15"; // Bumped version
 
         // Power-Up Constants
         const POWERUP_FREQ_PIXELS = 100 * 10; // 100m (1m = 10px) = 1000px
@@ -499,6 +527,9 @@
             hudLayer.style.display = 'block';
             leftHint.style.opacity = 0; rightHint.style.opacity = 0;
 
+            // Start Music
+            playRandomMusic();
+
             isPlaying = true;
             lastTime = performance.now();
             cancelAnimationFrame(animationFrameId);
@@ -561,6 +592,8 @@
             if (audioInitialized && humGain) {
                 humGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
             }
+            // Stop Music
+            stopMusic();
             
             gameOverScreen.style.display = 'flex';
             hudLayer.style.display = 'none';
