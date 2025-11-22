@@ -137,9 +137,9 @@
         <div id="leftHint" class="zone-hint" style="left: 15%">LEFT THUMB</div>
         <div id="rightHint" class="zone-hint" style="left: 85%">RIGHT THUMB</div>
         
-        <!-- Visual Alert for Slow/Shield -->
-        <div id="activeEffectLabel" style="position: absolute; top: 80px; left: 20px; font-family: 'Orbitron'; font-size: 14px; color: #FBBF24; display: none;">
-            SLOW MOTION <span id="slowTimerDisplay"></span>
+        <!-- Visual Alert for Slow/Shield/Teleport -->
+        <div id="activeEffectLabel" style="position: absolute; top: 80px; left: 20px; font-family: 'Orbitron'; font-size: 14px; color: #FBBF24; display: none; text-shadow: 0 0 5px rgba(0,0,0,0.8);">
+            <!-- Injected by JS -->
         </div>
     </div>
 
@@ -233,15 +233,15 @@
         const VOID_SPEED = 40;         
         const CURRENT_ZONE_HEIGHT = 500; 
         
-        const VERSION = "v0.2.10"; // Bumped version
+        const VERSION = "v0.2.11"; // Bumped version
 
         // Power-Up Constants
         const POWERUP_FREQ_PIXELS = 100 * 10; // 100m (1m = 10px) = 1000px
         const POWERUP_TYPES = [
             // prob is cumulative threshold
-            { type: 'SHIELD', color: '#3B82F6', label: 'S', prob: 0.50 }, // Changed to Blue
-            { type: 'TELEPORT', color: '#06B6D4', label: 'T', prob: 0.75 }, // 50% to 75% = 25% chance
-            { type: 'SLOW', color: '#EAB308', label: 'Z', prob: 1.00 }      // 75% to 100% = 25% chance
+            { type: 'SHIELD', color: '#3B82F6', label: 'S', prob: 0.50 }, // Blue
+            { type: 'TELEPORT', color: '#06B6D4', label: 'T', prob: 0.75 }, 
+            { type: 'SLOW', color: '#EAB308', label: 'Z', prob: 1.00 }      
         ];
 
         // =================================================================
@@ -280,8 +280,11 @@
         let inventory = null; // null, 'SHIELD', 'TELEPORT', 'SLOW'
         let shieldActive = false;
         let slowTimer = 0;
-        let wasBeamActive = false; // Logic helper for Slowdown activation
-        let lastPowerUpY = 0; // Track last generation point
+        let teleportMode = false; // New freeze state
+        let teleportTimer = 0;    // Countdown for teleport
+        
+        let wasBeamActive = false; 
+        let lastPowerUpY = 0; 
 
         // =================================================================
         // --- LIFECYCLE ---
@@ -381,9 +384,13 @@
             shieldActive = false;
             slowTimer = 0;
             wasBeamActive = false;
-            lastPowerUpY = window.innerHeight; // Start spawning after a screen length
+            teleportMode = false;
+            teleportTimer = 0;
+            lastPowerUpY = window.innerHeight; 
 
             updateInventoryUI();
+            // Clear any stuck label
+            activeEffectLabel.style.display = 'none';
 
             generateHoles(window.innerHeight * 0.75, window.innerHeight * 2.5); 
             particles = []; 
@@ -449,30 +456,24 @@
         }
 
         function generatePowerUpsCheck(startY, endY) {
-            // Check if we've passed the threshold distance since last spawn
             if (lastPowerUpY < cameraY + window.innerHeight) {
-                // Calculate target spawn Y
                 const spawnY = lastPowerUpY + POWERUP_FREQ_PIXELS + (Math.random() * 200);
                 
                 if (spawnY < endY) {
-                    // Try to place it
                     let placed = false;
                     for(let k=0; k<10; k++) {
                         const px = 40 + Math.random() * (window.innerWidth - 80);
-                        const pr = 20; // Powerup radius
+                        const pr = 20; 
                         
-                        // Check collision with holes
                         let safe = true;
                         for (let h of holes) {
                             if (Math.abs(h.y - spawnY) > 200) continue;
                             const dx = h.x - px; const dy = h.y - spawnY;
                             const dist = Math.sqrt(dx*dx + dy*dy);
-                            // Ensure not inside void circle (with margin)
                             if (dist < h.r + pr + 20) { safe = false; break; }
                         }
                         
                         if (safe) {
-                            // Determine type
                             const roll = Math.random();
                             let pType = POWERUP_TYPES[0].type;
                             for(let pt of POWERUP_TYPES) {
@@ -490,6 +491,27 @@
         }
 
         function update(dt) {
+            // --- TELEPORT MODE (Game Frozen) ---
+            if (teleportMode) {
+                teleportTimer -= dt;
+                
+                // Show countdown
+                activeEffectLabel.style.display = 'block';
+                activeEffectLabel.style.color = '#06B6D4';
+                activeEffectLabel.innerHTML = `TAP TO TELEPORT! ${(teleportTimer).toFixed(1)}s`;
+
+                if (teleportTimer <= 0) {
+                    teleportMode = false; // Auto-resume
+                    activeEffectLabel.style.display = 'none';
+                }
+                
+                // Update particles only (for visual flare during freeze)
+                updateParticles(dt);
+                return; // SKIP PHYSICS & SCROLLING
+            }
+
+            // --- NORMAL UPDATE ---
+
             // 1. SLOWDOWN LOGIC
             let physicsDt = dt;
             if (slowTimer > 0) {
@@ -499,7 +521,10 @@
                 activeEffectLabel.style.color = '#FBBF24';
                 activeEffectLabel.innerHTML = `SLOW MOTION ${(slowTimer).toFixed(1)}s`;
             } else {
-                if (activeEffectLabel.style.display === 'block') activeEffectLabel.style.display = 'none';
+                // Hide label only if not Teleporting
+                if (!teleportMode && activeEffectLabel.innerHTML.includes('SLOW')) {
+                    activeEffectLabel.style.display = 'none';
+                }
             }
 
             // 2. SCROLLING
@@ -521,11 +546,10 @@
                 generateHoles(holes[holes.length-1].y, cameraY + window.innerHeight + 1600);
             }
             
-            // PowerUp Generation
             powerUps = powerUps.filter(p => p.y > cameraY - 300 && !p.collected);
             generatePowerUpsCheck(cameraY, cameraY + window.innerHeight + 1600);
 
-            // 4. HOLE MOVEMENT (Very Hard)
+            // 4. HOLE MOVEMENT
             if (currentDifficulty === 'VERY_HARD') {
                 for (let h of holes) {
                     const zoneIndex = Math.floor(h.y / CURRENT_ZONE_HEIGHT);
@@ -536,14 +560,20 @@
                 }
             }
 
-            // 5. BEAM LOGIC & SLOWDOWN TRIGGER
+            // 5. BEAM LOGIC
             if (leftThumb && rightThumb) {
-                // Activation Trigger for Slowdown
+                // -- Resume from Teleport Freeze --
+                if (teleportMode) {
+                    teleportMode = false;
+                    activeEffectLabel.style.display = 'none';
+                }
+
+                // -- Slowdown Trigger --
                 if (!wasBeamActive && inventory === 'SLOW') {
                     slowTimer = 10.0;
                     inventory = null;
                     updateInventoryUI();
-                    spawnSparks(ball.x, ball.y, 15, '#EAB308'); // Yellow sparks
+                    spawnSparks(ball.x, ball.y, 15, '#EAB308'); 
                 }
                 wasBeamActive = true;
 
@@ -565,6 +595,16 @@
                 if (beam.ny > 0) { beam.nx = -beam.nx; beam.ny = -beam.ny; }
 
             } else {
+                // -- Teleport Trigger on Release --
+                if (wasBeamActive && inventory === 'TELEPORT') {
+                    teleportMode = true;
+                    teleportTimer = 10.0;
+                    inventory = null; // Consume
+                    updateInventoryUI();
+                    // Stop ball for easier aiming
+                    ball.vx = 0; ball.vy = 0;
+                }
+
                 wasBeamActive = false;
                 beam = null; rawBeam = null; ball.magnetized = false; 
             }
@@ -632,15 +672,12 @@
                 }
                 
                 if (dist < h.r - (BALL_RADIUS * 0.4)) { 
-                    // Collision! Check Shield
                     if (shieldActive) {
-                        // Shield Save
                         shieldActive = false;
-                        inventory = null; // FIX: Clear inventory explicitly
+                        inventory = null; 
                         updateInventoryUI();
-                        spawnSparks(h.x, h.y, 20, '#3B82F6'); // Explosion Blue
-                        holes.splice(i, 1); // Destroy hole
-                        // Push ball away slightly to prevent instant death on next frame if multiple holes overlap (rare)
+                        spawnSparks(h.x, h.y, 20, '#3B82F6'); 
+                        holes.splice(i, 1); 
                         ball.vy = -300; 
                     } else {
                         lose("Consumed by Void"); 
@@ -662,9 +699,9 @@
             if (inventory === null && !shieldActive) {
                 if (p.type === 'SHIELD') {
                     shieldActive = true;
-                    inventory = 'SHIELD'; // Set inventory for UI display purposes
+                    inventory = 'SHIELD'; 
                     spawnSparks(p.x, p.y, 10, '#3B82F6');
-                    spawnSparks(ball.x, ball.y, 10, '#3B82F6'); // Show feedback on ball
+                    spawnSparks(ball.x, ball.y, 10, '#3B82F6'); 
                 } else {
                     inventory = p.type;
                     spawnSparks(p.x, p.y, 10, '#FFF');
@@ -681,27 +718,22 @@
             ball.vy = 0; // Clear momentum
             spawnSparks(ball.x, ball.y, 15, '#06B6D4');
             
-            inventory = null;
-            updateInventoryUI();
+            // Don't end mode or clear inventory here, logic handles flow
+            // Wait, inventory was already cleared on mode start.
+            // Just move ball.
         }
 
         function updateInventoryUI() {
             let html = '';
-            let color = '#475569'; // Empty color
+            let color = '#475569'; 
 
-            // SVG Definitions
-            // Knight's shield with partition
             const shieldSVG = `<svg viewBox="0 0 24 24" width="32" height="32">
-                <!-- Left Half (Base Color) -->
                 <path d="M12 2 L4 2 L4 13 C4 17 7 20 12 22 Z" fill="#3B82F6"/>
-                <!-- Right Half (Darker Color for partition effect) -->
                 <path d="M12 2 L20 2 L20 13 C20 17 17 20 12 22 Z" fill="#1D4ED8"/>
             </svg>`;
-            
             const slowSVG = `<svg viewBox="0 0 24 24" width="32" height="32" fill="#EAB308"><path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.07 4.74 14.12 4 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>`;
             const teleportSVG = `<svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#06B6D4" stroke-width="2"><path d="M12 4c4.418 0 8 1.79 8 4s-3.582 4-8 4-8-1.79-8-4 3.582-4 8-4z"/><path d="M12 12c4.418 0 8 1.79 8 4s-3.582 4-8 4-8-1.79-8-4 3.582-4 8-4z"/></svg>`;
 
-            // Prioritize displaying shield status if active
             if (shieldActive) {
                 html = shieldSVG;
                 color = '#172554';
@@ -712,12 +744,11 @@
                     color = '#713F12';
                 } else if (inventory === 'TELEPORT') {
                     html = teleportSVG;
-                    html += '<div class="inv-hint" style="position:absolute; bottom: -25px; width: 100px; color:#06B6D4; font-weight:bold;">TAP TO WARP</div>';
+                    html += '<div class="inv-hint" style="position:absolute; bottom: -25px; width: 100px; color:#06B6D4; font-weight:bold;">RELEASE BEAM</div>';
                     color = '#155E75';
                 }
             }
             
-            // Visual styling
             if (inventory === 'TELEPORT') {
                 invSlot.style.borderColor = '#22D3EE';
                 invSlot.style.boxShadow = '0 0 15px #06B6D4';
@@ -759,7 +790,6 @@
             ctx.fillStyle = `rgb(${Math.floor(bgColor.r)}, ${Math.floor(bgColor.g)}, ${Math.floor(bgColor.b)})`;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Stars
             ctx.fillStyle = '#FFF';
             for(let s of bgStars) {
                 const sy = (s.y - cameraY * s.speed) % canvas.height;
@@ -769,57 +799,48 @@
             }
             ctx.globalAlpha = 1;
 
-            // PowerUps
             for(let p of powerUps) {
                 const sy = p.y - cameraY;
                 if (sy < -50 || sy > canvas.height + 50) continue;
 
-                // Color based on type
                 let c = '#FFF';
                 if(p.type === 'SHIELD') c = '#3B82F6'; 
                 else if(p.type === 'TELEPORT') c = '#06B6D4'; 
                 else if(p.type === 'SLOW') c = '#EAB308';
 
-                // Glow
                 ctx.shadowBlur = 10; ctx.shadowColor = c;
                 ctx.fillStyle = 'rgba(0,0,0,0.5)';
                 ctx.strokeStyle = c; ctx.lineWidth = 2;
                 ctx.beginPath(); ctx.arc(p.x, sy, p.r, 0, Math.PI*2);
                 ctx.fill(); ctx.stroke();
 
-                // Icons (Drawn directly)
                 ctx.save();
                 ctx.translate(p.x, sy);
                 const iconScale = 0.6; 
                 ctx.scale(iconScale, iconScale);
 
                 if (p.type === 'SHIELD') {
-                    // Left Half (Base color c = #3B82F6)
                     ctx.fillStyle = c;
                     ctx.beginPath();
-                    ctx.moveTo(0, -15); // Top center
-                    ctx.lineTo(-12, -15); // Top left
-                    ctx.lineTo(-12, 5); // Side down straight
-                    ctx.quadraticCurveTo(-12, 18, 0, 25); // Curve to tip
-                    ctx.lineTo(0, -15); // Back to top center
+                    ctx.moveTo(0, -15); 
+                    ctx.lineTo(-12, -15); 
+                    ctx.lineTo(-12, 5); 
+                    ctx.quadraticCurveTo(-12, 18, 0, 25); 
+                    ctx.lineTo(0, -15); 
                     ctx.fill();
 
-                    // Right Half (Darker color)
-                    ctx.fillStyle = '#1D4ED8'; // Darker blue contrast
+                    ctx.fillStyle = '#1D4ED8'; 
                     ctx.beginPath();
-                    ctx.moveTo(0, -15); // Top center
-                    ctx.lineTo(12, -15); // Top right
-                    ctx.lineTo(12, 5); // Side down straight
-                    ctx.quadraticCurveTo(12, 18, 0, 25); // Curve to tip
-                    ctx.lineTo(0, -15); // Back to top center
+                    ctx.moveTo(0, -15); 
+                    ctx.lineTo(12, -15); 
+                    ctx.lineTo(12, 5); 
+                    ctx.quadraticCurveTo(12, 18, 0, 25); 
+                    ctx.lineTo(0, -15); 
                     ctx.fill();
                 } else if (p.type === 'SLOW') {
                     ctx.fillStyle = c;
-                    // Stopwatch body
                     ctx.beginPath(); ctx.arc(0, 2, 14, 0, Math.PI*2); ctx.fill();
-                    // Button
                     ctx.fillRect(-3, -18, 6, 4);
-                    // Hands
                     ctx.strokeStyle = '#0F172A'; ctx.lineWidth = 3;
                     ctx.beginPath(); ctx.moveTo(0, 2); ctx.lineTo(0, -8); ctx.stroke();
                     ctx.beginPath(); ctx.moveTo(0, 2); ctx.lineTo(6, 2); ctx.stroke();
@@ -832,10 +853,8 @@
                 ctx.restore();
             }
             
-            // FIX: Reset shadow after PowerUps so voids don't glow
             ctx.shadowBlur = 0; 
 
-            // Voids
             for(let h of holes) {
                 const sy = h.y - cameraY; 
                 if (sy < -100 || sy > canvas.height + 100) continue;
@@ -858,7 +877,6 @@
                 }
             }
 
-            // Beam
             if(beam) {
                 const sy1 = beam.y1 - cameraY; const sy2 = beam.y2 - cameraY;
                 ctx.shadowBlur = ball.magnetized?30:20; ctx.shadowColor = ball.magnetized?'#93C5FD':'#3B82F6';
@@ -871,10 +889,8 @@
                 ctx.beginPath(); ctx.moveTo(beam.x1, sy1); ctx.lineTo(beam.x2, sy2); ctx.stroke();
             }
 
-            // Ball
             const bsy = ball.y - cameraY;
             
-            // Shield Effect
             if (shieldActive) {
                 ctx.shadowBlur = 20; ctx.shadowColor = '#3B82F6';
                 ctx.fillStyle = '#93C5FD';
@@ -885,14 +901,12 @@
             
             ctx.beginPath(); ctx.arc(ball.x, bsy, BALL_RADIUS, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
             
-            // Shield Ring
             if (shieldActive) {
                 ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
                 ctx.lineWidth = 3;
                 ctx.beginPath(); ctx.arc(ball.x, bsy, BALL_RADIUS + 5, 0, Math.PI*2); ctx.stroke();
             }
 
-            // Particles
             for(let p of particles) {
                 const psy = p.y - cameraY; 
                 ctx.globalAlpha = p.life; 
@@ -937,13 +951,11 @@
             if(e.target.closest('.inventory-box') || e.target.classList.contains('game-btn')) return;
             e.preventDefault(); 
             
-            // TELEPORT LOGIC: Consume on next tap if holding Teleport
-            // Check if beam is inactive (we need less than 2 touches to claim beam is inactive/forming)
-            if (inventory === 'TELEPORT' && (!leftThumb || !rightThumb) && e.type === 'touchstart') {
+            if (teleportMode && e.type === 'touchstart') {
                 const t = e.changedTouches[0];
                 const rect = touchLayer.getBoundingClientRect();
                 performTeleport(t.clientX - rect.left, t.clientY - rect.top);
-                return; // Do NOT register this touch as a thumb for beam creation
+                return;
             }
 
             const rect = touchLayer.getBoundingClientRect();
@@ -970,8 +982,7 @@
         }
 
         function handleMouse(e) {
-            // TELEPORT LOGIC (Mouse Version)
-            if (inventory === 'TELEPORT' && e.type === 'mousedown') {
+            if (teleportMode && e.type === 'mousedown') {
                  const rect = touchLayer.getBoundingClientRect();
                  performTeleport(e.clientX - rect.left, e.clientY - rect.top);
                  return;
