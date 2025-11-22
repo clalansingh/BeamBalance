@@ -179,8 +179,17 @@
     </div>
 
     <script>
-        // --- ERROR LOGGING ---
+        // =================================================================
+        // --- UTILITIES & SYSTEM LOGGING ---
+        // =================================================================
+
         const sysLog = document.getElementById('systemLog');
+        
+        /**
+         * Logs a message to the console and displays it in the hidden system log div
+         * for visibility within the iframe environment.
+         * @param {string} msg - The message to log.
+         */
         function log(msg) {
             console.log(msg);
             if(sysLog) {
@@ -190,35 +199,85 @@
         }
         window.onerror = function(msg) { log(msg); };
 
-        // --- GLOBAL STATE ---
+        /**
+         * Resizes the canvas elements to fit the viewport and regenerates background stars.
+         */
+        function resize() {
+            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+            uiCanvas.width = window.innerWidth; uiCanvas.height = window.innerHeight;
+            bgStars = [];
+            // Generate simple background stars
+            for(let i=0; i<60; i++) bgStars.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: Math.random() * 2.5,
+                speed: 0.2 + Math.random() * 0.5 // Parallax effect multiplier
+            });
+        }
+        
+        // =================================================================
+        // --- PHYSICS CONSTANTS ---
+        // These constants define the game's difficulty and physical properties.
+        // =================================================================
+
+        const GRAVITY = 1000;          // Base downward acceleration (pixels/s^2)
+        const SCROLL_SPEED_BASE = 130; // Starting scroll speed (pixels/s)
+        const BALL_RADIUS = 12;        // Radius of the player ball
+        const BEAM_THICKNESS = 8;      // Visual thickness of the magnetic rail
+        const MIN_GAP = 60;            // Minimum distance between magnetic void holes
+        const SNAP_DISTANCE = 25;      // Max distance for the ball to magnetically snap to the beam
+        const ROLL_BOOST = 1.8;        // Multiplier applied to gravity when rolling on the beam
+        const RAIL_FRICTION = 0.98;    // Horizontal velocity decay when magnetized (per frame)
+        const VOID_SPEED = 40;         // Horizontal speed of voids in VERY_HARD mode
+        const CURRENT_ZONE_HEIGHT = 500; // Vertical distance for void movement zones (VERY_HARD)
+
+        // =================================================================
+        // --- GLOBAL GAME STATE & CONFIG ---
+        // =================================================================
+        
+        // Canvas contexts and DOM elements
         let canvas, ctx, uiCanvas, uiCtx, touchLayer;
         let menuScreen, gameOverScreen, leftHint, rightHint;
+        
         let animationFrameId;
-
-        // Config
-        const GRAVITY = 1000;
-        const SCROLL_SPEED_BASE = 130;
-        const BALL_RADIUS = 12;
-        const BEAM_THICKNESS = 8;
-        const MIN_GAP = 24 * 2.5; 
-        const SNAP_DISTANCE = 25; 
-        const ROLL_BOOST = 1.8; 
-        const RAIL_FRICTION = 0.98; 
-        const VOID_SPEED = 40; 
-        const CURRENT_ZONE_HEIGHT = 500; 
-
-        let isPlaying = false, lastTime = 0, score = 0, scrollSpeed = 0, cameraY = 0;
+        let isBooted = false; // Flag to prevent multiple initializations
+        let isPlaying = false; 
+        let lastTime = 0; 
+        
+        // Core game state
+        let score = 0; 
+        let scrollSpeed = 0; 
+        let cameraY = 0; // Represents the distance traveled, used for world scrolling
         let currentDifficulty = 'NORMAL';
-        let bgColor = { r: 15, g: 23, b: 42 }; 
+        let bgColor = { r: 15, g: 23, b: 42 }; // Dynamic background color for difficulty ramp
+
+        // High scores (loaded/saved via localStorage)
         let bestNormal = 0, bestHard = 0, bestVeryHard = 0;
 
+        // Game Entities
         let ball = { x: 0, y: 0, vx: 0, vy: 0, magnetized: false };
-        let holes = [], particles = [], bgStars = [];
-        let leftThumb = null, rightThumb = null, beam = null, rawBeam = null;
+        let holes = [];       // The magnetic void obstacles
+        let particles = [];   // Spark effects on magnetize/interaction
+        let bgStars = [];     // Simple scrolling background elements
 
-        // --- BOOT SEQUENCE ---
+        // Input and Beam state
+        let leftThumb = null;  // Normalized screen coords for left touch/mouse input
+        let rightThumb = null; // Normalized screen coords for right touch/mouse input
+        let beam = null;       // Calculated infinite rail line (world coordinates)
+        let rawBeam = null;    // Raw input points (screen coordinates, used for UI drawing)
+
+        // =================================================================
+        // --- GAME LIFECYCLE & CONTROL ---
+        // =================================================================
+
+        /**
+         * Main initialization sequence for the game.
+         */
         function boot() {
-            // Get Elements
+            if (isBooted) return;
+            isBooted = true;
+
+            // 1. Get DOM references
             canvas = document.getElementById('gameCanvas');
             ctx = canvas.getContext('2d');
             uiCanvas = document.getElementById('uiCanvas');
@@ -230,12 +289,12 @@
             leftHint = document.getElementById('leftHint');
             rightHint = document.getElementById('rightHint');
 
-            // Resize & Load
+            // 2. Setup environment
             resize();
             window.addEventListener('resize', resize);
-            loadScores();
+            loadScores(); // Load existing high scores
 
-            // Bind Inputs
+            // 3. Bind inputs
             touchLayer.ontouchstart = handleTouch;
             touchLayer.ontouchmove = handleTouch;
             touchLayer.ontouchend = handleTouch;
@@ -244,7 +303,7 @@
             touchLayer.onmousemove = handleMouse;
             touchLayer.onmouseup = () => { leftThumb = null; rightThumb = null; };
 
-            // Bind Buttons (Click works best for hybrid compatibility)
+            // 4. Bind UI buttons
             const bind = (id, fn) => {
                 const el = document.getElementById(id);
                 if(el) el.onclick = (e) => { e.stopPropagation(); fn(); };
@@ -257,169 +316,67 @@
             bind('btnMenu', showMenu);
         }
 
-        // --- GAME LOGIC ---
+        /**
+         * Displays the main menu and updates high scores.
+         */
         function showMenu() {
             gameOverScreen.style.display = 'none';
             menuScreen.style.display = 'flex';
             updateMenuUI();
         }
 
+        /**
+         * Initializes the game state for a new run with the selected difficulty.
+         * @param {string} difficulty - 'NORMAL', 'HARD', or 'VERY_HARD'.
+         */
         function initGame(difficulty) {
             if(isPlaying) return;
             currentDifficulty = difficulty;
             
+            // Update HUD elements
             const dl = document.getElementById('difficultyLabel');
             const hb = document.getElementById('hudBestScore');
-            
             dl.innerText = difficulty;
-            let best = 0;
             
-            // Visual updates based on difficulty
+            let best = 0;
             if(difficulty === 'NORMAL') { dl.style.color = '#60A5FA'; best = bestNormal; }
             else if(difficulty === 'HARD') { dl.style.color = '#C084FC'; best = bestHard; }
             else { dl.style.color = '#F87171'; best = bestVeryHard; }
-            
             hb.innerText = best;
 
             resetGameLogic();
             
-            // Force Hide Menus
+            // Hide menus and initial hints
             menuScreen.style.display = 'none';
             gameOverScreen.style.display = 'none';
             leftHint.style.opacity = 0; rightHint.style.opacity = 0;
 
+            // Start the loop
             isPlaying = true;
             lastTime = performance.now();
             cancelAnimationFrame(animationFrameId);
             requestAnimationFrame(loop);
         }
 
+        /**
+         * Resets all game entities and variables to their starting values.
+         */
         function resetGameLogic() {
             resize();
             score = 0; cameraY = 0; scrollSpeed = SCROLL_SPEED_BASE;
             bgColor = { r: 15, g: 23, b: 42 };
             ball = { x: window.innerWidth/2, y: 100, vx: 0, vy: 0, magnetized: false };
-            holes = []; generateHoles(window.innerHeight * 0.75, window.innerHeight * 2.5);
-            particles = []; leftThumb = null; rightThumb = null; beam = null; rawBeam = null;
+            holes = []; 
+            // Generate initial batch of voids
+            generateHoles(window.innerHeight * 0.75, window.innerHeight * 2.5); 
+            particles = []; 
+            leftThumb = null; rightThumb = null; beam = null; rawBeam = null;
         }
 
-        function generateHoles(startY, endY) {
-            const stepY = 50; let currentY = startY;
-            while (currentY < endY) {
-                const attempts = 20; 
-                for (let i = 0; i < attempts; i++) {
-                    const r = 25 + Math.random() * 30; 
-                    const margin = r + 10;
-                    const candidateX = margin + Math.random() * (window.innerWidth - margin * 2);
-                    const candidateY = currentY + (Math.random() * 60 - 30); 
-                    const newHole = { x: candidateX, y: candidateY, r: r, id: Math.random() };
-                    let valid = true;
-                    for (let h of holes) {
-                        if (Math.abs(h.y - newHole.y) > 200) continue;
-                        const dx = h.x - newHole.x; const dy = h.y - newHole.y;
-                        const dist = Math.sqrt(dx*dx + dy*dy);
-                        if (dist < h.r + newHole.r + MIN_GAP) { valid = false; break; }
-                    }
-                    if (valid) holes.push(newHole);
-                }
-                currentY += stepY;
-            }
-            holes.sort((a,b) => a.y - b.y);
-        }
-
-        function update(dt) {
-            if (currentDifficulty === 'NORMAL') scrollSpeed = SCROLL_SPEED_BASE + (score / 4);
-            else {
-                scrollSpeed = SCROLL_SPEED_BASE + (score / 1.5); 
-                const p = Math.min(score / 500, 1); 
-                bgColor.r = 15 * (1 - p); bgColor.g = 23 * (1 - p); bgColor.b = 42 * (1 - p);
-            }
-            
-            cameraY += scrollSpeed * dt;
-            score = Math.floor(cameraY / 10);
-            document.getElementById('scoreDisplay').innerText = score + "m";
-
-            holes = holes.filter(h => h.y > cameraY - 300);
-            if (holes.length > 0 && holes[holes.length-1].y < cameraY + window.innerHeight + 800) {
-                generateHoles(holes[holes.length-1].y, cameraY + window.innerHeight + 1600);
-            }
-
-            if (currentDifficulty === 'VERY_HARD') {
-                for (let h of holes) {
-                    const z = Math.floor(h.y / CURRENT_ZONE_HEIGHT);
-                    const d = (z % 2 === 0) ? -1 : 1;
-                    h.x += d * VOID_SPEED * dt;
-                    if (d === -1 && h.x < -h.r) h.x = window.innerWidth + h.r; 
-                    else if (d === 1 && h.x > window.innerWidth + h.r) h.x = -h.r;
-                }
-            }
-
-            if (leftThumb && rightThumb) {
-                rawBeam = { x1: leftThumb.x, y1: leftThumb.y, x2: rightThumb.x, y2: rightThumb.y };
-                const rawX1 = leftThumb.x; const rawY1 = leftThumb.y + cameraY;
-                const rawX2 = rightThumb.x; const rawY2 = rightThumb.y + cameraY;
-                const dx = rawX2 - rawX1; const dy = rawY2 - rawY1;
-                const len = Math.sqrt(dx*dx + dy*dy);
-                const unitX = dx / len; const unitY = dy / len;
-                const EXTENSION = 3000;
-                beam = {
-                    x1: rawX1 - unitX * EXTENSION, y1: rawY1 - unitY * EXTENSION,
-                    x2: rawX2 + unitX * EXTENSION, y2: rawY2 + unitY * EXTENSION,
-                    nx: -unitY, ny: unitX, len: len + (EXTENSION * 2),
-                    slope: dy/dx
-                };
-                if (beam.ny > 0) { beam.nx = -beam.nx; beam.ny = -beam.ny; }
-            } else {
-                beam = null; rawBeam = null; ball.magnetized = false; 
-            }
-
-            if (ball.magnetized && beam) {
-                const m = (beam.y2 - beam.y1) / (beam.x2 - beam.x1);
-                const targetY = m * (ball.x - beam.x1) + beam.y1;
-                ball.y = targetY - (BALL_RADIUS + BEAM_THICKNESS/2);
-                ball.vy = 0; 
-                const angle = Math.atan2(beam.y2 - beam.y1, beam.x2 - beam.x1);
-                const gForce = GRAVITY * Math.sin(angle) * ROLL_BOOST; 
-                ball.vx += gForce * dt;
-                ball.vx *= RAIL_FRICTION; 
-            } else {
-                ball.vy += GRAVITY * dt; ball.vx *= 0.99; ball.y += ball.vy * dt;
-                if (beam) {
-                    const dx = beam.x2 - beam.x1; const dy = beam.y2 - beam.y1;
-                    const t = ((ball.x - beam.x1) * dx + (ball.y - beam.y1) * dy) / (beam.len * beam.len);
-                    const closeX = beam.x1 + t * dx; const closeY = beam.y1 + t * dy;
-                    const dist = Math.sqrt((ball.x - closeX)**2 + (ball.y - closeY)**2);
-                    if (dist < BALL_RADIUS + SNAP_DISTANCE) {
-                        const relX = ball.x - beam.x1; const relY = ball.y - beam.y1;
-                        const dotNormal = relX * beam.nx + relY * beam.ny;
-                        if (dotNormal > -BALL_RADIUS) {
-                            ball.magnetized = true; spawnSparks(ball.x, ball.y, 3); 
-                        }
-                    }
-                }
-            }
-            ball.x += ball.vx * dt;
-
-            for (let h of holes) {
-                const dx = ball.x - h.x; const dy = ball.y - h.y;
-                const dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist < h.r + 50) {
-                    const pull = 1 - (dist / (h.r+50));
-                    let f = 700 * pull * dt;
-                    if(ball.magnetized) f *= 0.3;
-                    else { ball.vx += (h.x - ball.x)/dist * f; ball.vy += (h.y - ball.y)/dist * f; }
-                }
-                if (dist < h.r - (BALL_RADIUS * 0.4)) { lose("Consumed by Void"); return; }
-            }
-
-            const screenY = ball.y - cameraY;
-            if (screenY < -200) lose("Lost in Space"); 
-            if (screenY > window.innerHeight + 100) lose("Fell Behind"); 
-            if (ball.x < 0 || ball.x > window.innerWidth) lose("Off Screen"); 
-
-            updateParticles(dt);
-        }
-
+        /**
+         * Triggers the game over state, calculates scores, and shows the end screen.
+         * @param {string} reason - The cause of death.
+         */
         function lose(reason) {
             isPlaying = false;
             document.getElementById('deathReason').innerText = reason;
@@ -427,7 +384,7 @@
             
             const isNewRecord = saveScore(score);
             
-            // Logic to show/hide correct Game Over UI elements
+            // Update Game Over UI based on record status
             const newRec = document.getElementById('newRecordMessage');
             const normTitle = document.getElementById('normalDeathTitle');
             const endBest = document.getElementById('endBestScore');
@@ -447,122 +404,413 @@
                 endBest.innerText = best;
             }
             
-            // Show Game Over Screen
             gameOverScreen.style.display = 'flex';
-            leftHint.style.opacity = 1; rightHint.style.opacity = 1;
+            leftHint.style.opacity = 1; rightHint.style.opacity = 1; // Show input hints again
         }
 
-        function spawnSparks(x, y, count) {
-            for(let i=0; i<count; i++) particles.push({ x:x, y:y, vx:(Math.random()-0.5)*200, vy:(Math.random()-0.5)*200, life:0.3+Math.random()*0.2, color:'#60A5FA' });
+        // =================================================================
+        // --- CORE GAME LOGIC (UPDATE & PHYSICS) ---
+        // =================================================================
+
+        /**
+         * Generates magnetic void obstacles in a given vertical range.
+         * @param {number} startY - World Y coordinate to start generation.
+         * @param {number} endY - World Y coordinate to stop generation.
+         */
+        function generateHoles(startY, endY) {
+            const stepY = 50; let currentY = startY;
+            while (currentY < endY) {
+                const attempts = 20; 
+                for (let i = 0; i < attempts; i++) {
+                    const r = 25 + Math.random() * 30; // Random radius
+                    const margin = r + 10;
+                    const candidateX = margin + Math.random() * (window.innerWidth - margin * 2);
+                    const candidateY = currentY + (Math.random() * 60 - 30); 
+                    const newHole = { x: candidateX, y: candidateY, r: r, id: Math.random() };
+                    
+                    let valid = true;
+                    // Check collision with nearby existing holes to ensure minimum gap
+                    for (let h of holes) {
+                        if (Math.abs(h.y - newHole.y) > 200) continue; // Optimization: check only nearby holes
+                        const dx = h.x - newHole.x; const dy = h.y - newHole.y;
+                        const dist = Math.sqrt(dx*dx + dy*dy);
+                        if (dist < h.r + newHole.r + MIN_GAP) { valid = false; break; }
+                    }
+                    if (valid) holes.push(newHole);
+                }
+                currentY += stepY;
+            }
+            holes.sort((a,b) => a.y - b.y);
         }
+
+        /**
+         * Updates the state of the game world and player.
+         * @param {number} dt - Delta time (time elapsed since last frame in seconds).
+         */
+        function update(dt) {
+            // 1. SCROLLING AND DIFFICULTY RAMP
+            if (currentDifficulty === 'NORMAL') scrollSpeed = SCROLL_SPEED_BASE + (score / 4);
+            else {
+                // Harder modes accelerate scroll faster
+                scrollSpeed = SCROLL_SPEED_BASE + (score / 1.5); 
+                // Color ramp to black/red for higher difficulty
+                const p = Math.min(score / 500, 1); 
+                bgColor.r = 15 * (1 - p); bgColor.g = 23 * (1 - p); bgColor.b = 42 * (1 - p);
+            }
+            
+            cameraY += scrollSpeed * dt;
+            score = Math.floor(cameraY / 10);
+            document.getElementById('scoreDisplay').innerText = score + "m";
+
+            // 2. HOLE MANAGEMENT (Culling and Generation)
+            holes = holes.filter(h => h.y > cameraY - 300);
+            if (holes.length > 0 && holes[holes.length-1].y < cameraY + window.innerHeight + 800) {
+                generateHoles(holes[holes.length-1].y, cameraY + window.innerHeight + 1600);
+            }
+
+            // 3. VERY_HARD VOID MOVEMENT
+            if (currentDifficulty === 'VERY_HARD') {
+                for (let h of holes) {
+                    const zoneIndex = Math.floor(h.y / CURRENT_ZONE_HEIGHT);
+                    const direction = (zoneIndex % 2 === 0) ? -1 : 1; // Voids alternate direction every zone
+                    h.x += direction * VOID_SPEED * dt;
+                    // Wrap around screen
+                    if (direction === -1 && h.x < -h.r) h.x = window.innerWidth + h.r; 
+                    else if (direction === 1 && h.x > window.innerWidth + h.r) h.x = -h.r;
+                }
+            }
+
+            // 4. BEAM CONSTRUCTION (from screen space input to world space line)
+            if (leftThumb && rightThumb) {
+                rawBeam = { x1: leftThumb.x, y1: leftThumb.y, x2: rightThumb.x, y2: rightThumb.y };
+                const rawX1 = leftThumb.x; const rawY1 = leftThumb.y + cameraY; // Convert to world Y
+                const rawX2 = rightThumb.x; const rawY2 = rightThumb.y + cameraY;
+                const dx = rawX2 - rawX1; const dy = rawY2 - rawY1;
+                const len = Math.sqrt(dx*dx + dy*dy);
+                const unitX = dx / len; const unitY = dy / len;
+                const EXTENSION = 3000; // Extend beam visually for infinity
+                
+                beam = {
+                    x1: rawX1 - unitX * EXTENSION, y1: rawY1 - unitY * EXTENSION,
+                    x2: rawX2 + unitX * EXTENSION, y2: rawY2 + unitY * EXTENSION,
+                    nx: -unitY, ny: unitX, // Normal vector (perpendicular to beam)
+                    len: len + (EXTENSION * 2),
+                    slope: dy/dx
+                };
+                // Ensure Normal Vector (nx, ny) points upwards (ny < 0)
+                if (beam.ny > 0) { beam.nx = -beam.nx; beam.ny = -beam.ny; }
+
+            } else {
+                beam = null; rawBeam = null; ball.magnetized = false; 
+            }
+
+            // 5. BALL PHYSICS
+            if (ball.magnetized && beam) {
+                // State A: Magnetized (Stuck to the beam)
+                const m = beam.slope;
+                const targetY = m * (ball.x - beam.x1) + beam.y1;
+                ball.y = targetY - (BALL_RADIUS + BEAM_THICKNESS/2); // Position ball just above beam center
+                ball.vy = 0; // Lock vertical velocity
+
+                // Apply gravity component for rolling along the slope
+                const angle = Math.atan2(beam.y2 - beam.y1, beam.x2 - beam.x1);
+                const gForce = GRAVITY * Math.sin(angle) * ROLL_BOOST; 
+                ball.vx += gForce * dt;
+                ball.vx *= RAIL_FRICTION; // Apply friction
+            } else {
+                // State B: Freefall (Not magnetized)
+                ball.vy += GRAVITY * dt; 
+                ball.vx *= 0.99; // Slight air resistance
+                ball.y += ball.vy * dt;
+                
+                // Check for SNAP (Transition from Freefall to Magnetized)
+                if (beam) {
+                    const dx = beam.x2 - beam.x1; const dy = beam.y2 - beam.y1;
+                    // Project ball onto the infinite beam line (t is the parameter along the line)
+                    const t = ((ball.x - beam.x1) * dx + (ball.y - beam.y1) * dy) / (beam.len * beam.len);
+                    const closeX = beam.x1 + t * dx; 
+                    const closeY = beam.y1 + t * dy;
+                    const dist = Math.sqrt((ball.x - closeX)**2 + (ball.y - closeY)**2);
+                    
+                    // If close enough
+                    if (dist < BALL_RADIUS + SNAP_DISTANCE) {
+                        const relX = ball.x - beam.x1; const relY = ball.y - beam.y1;
+                        // Check dot product with normal vector to ensure the ball is *above* the beam
+                        const dotNormal = relX * beam.nx + relY * beam.ny;
+                        if (dotNormal > -BALL_RADIUS) {
+                            ball.magnetized = true; 
+                            spawnSparks(ball.x, ball.y, 3); 
+                        }
+                    }
+                }
+            }
+            ball.x += ball.vx * dt; // Apply horizontal velocity
+
+            // 6. VOID COLLISION AND PULL
+            for (let h of holes) {
+                const dx = ball.x - h.x; const dy = ball.y - h.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                
+                // Apply attractive pull force
+                if (dist < h.r + 50) {
+                    const pull = 1 - (dist / (h.r+50));
+                    let f = 700 * pull * dt;
+                    if(ball.magnetized) f *= 0.3; // Magnetization resists the pull
+                    else { 
+                        ball.vx += (h.x - ball.x)/dist * f; 
+                        ball.vy += (h.y - ball.y)/dist * f; 
+                    }
+                }
+                
+                // Check for fatal collision (entering the inner core)
+                if (dist < h.r - (BALL_RADIUS * 0.4)) { 
+                    lose("Consumed by Void"); 
+                    return; // End update cycle immediately
+                }
+            }
+
+            // 7. BOUNDARY CHECKS
+            const screenY = ball.y - cameraY;
+            if (screenY < -200) lose("Lost in Space");      // Too far above the view
+            if (screenY > window.innerHeight + 100) lose("Fell Behind"); // Too far below (scroll too slow)
+            if (ball.x < 0 || ball.x > window.innerWidth) lose("Off Screen"); // Horizontal boundary
+
+            // 8. PARTICLE UPDATES
+            updateParticles(dt);
+        }
+
+        /**
+         * Creates a burst of cosmetic spark particles.
+         * @param {number} x - X position.
+         * @param {number} y - Y position.
+         * @param {number} count - Number of particles to spawn.
+         */
+        function spawnSparks(x, y, count) {
+            for(let i=0; i<count; i++) particles.push({ 
+                x: x, 
+                y: y, 
+                vx: (Math.random()-0.5)*200, 
+                vy: (Math.random()-0.5)*200, 
+                life: 0.3 + Math.random() * 0.2, 
+                color: '#60A5FA' 
+            });
+        }
+
+        /**
+         * Updates particle positions and longevity based on delta time.
+         * @param {number} dt - Delta time in seconds.
+         */
         function updateParticles(dt) {
             for(let i=particles.length-1; i>=0; i--) {
-                let p = particles[i]; p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt;
-                if(p.life<=0) particles.splice(i,1);
+                let p = particles[i]; 
+                p.x += p.vx * dt; 
+                p.y += p.vy * dt; 
+                p.life -= dt;
+                if(p.life <= 0) particles.splice(i,1);
             }
         }
 
+        // =================================================================
+        // --- RENDERING ---
+        // =================================================================
+
+        /**
+         * Draws the game world (background, holes, beam, ball, particles).
+         */
         function draw() {
+            // Clear canvas with dynamic background color
             ctx.fillStyle = `rgb(${Math.floor(bgColor.r)}, ${Math.floor(bgColor.g)}, ${Math.floor(bgColor.b)})`;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 1. Draw Background Stars (Parallax)
             ctx.fillStyle = '#FFF';
             for(let s of bgStars) {
+                // Apply parallax scrolling based on cameraY and star speed
                 const sy = (s.y - cameraY * s.speed) % canvas.height;
+                // Handle wrap-around from bottom to top
                 const dy = sy < 0 ? sy + canvas.height : sy;
-                ctx.globalAlpha = 0.3; ctx.beginPath(); ctx.arc(s.x, dy, s.size, 0, Math.PI*2); ctx.fill();
+                ctx.globalAlpha = 0.3; 
+                ctx.beginPath(); ctx.arc(s.x, dy, s.size, 0, Math.PI*2); ctx.fill();
             }
             ctx.globalAlpha = 1;
+
+            // 2. Draw Voids (Holes)
             for(let h of holes) {
-                const sy = h.y - cameraY; if (sy < -100 || sy > canvas.height + 100) continue;
+                const sy = h.y - cameraY; 
+                if (sy < -100 || sy > canvas.height + 100) continue; // Culling
+                
+                // Radial gradient for deep void look
                 const grad = ctx.createRadialGradient(h.x, sy, h.r * 0.2, h.x, sy, h.r);
                 grad.addColorStop(0, '#000'); grad.addColorStop(0.7, '#450a0a'); grad.addColorStop(1, '#7f1d1d');
-                ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(h.x, sy, h.r, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = grad; 
+                ctx.beginPath(); ctx.arc(h.x, sy, h.r, 0, Math.PI*2); ctx.fill();
+                
+                // Draw inner danger ring
                 ctx.strokeStyle = 'rgba(255,100,100,0.6)'; ctx.lineWidth = 2; ctx.setLineDash([5,5]);
                 ctx.beginPath(); ctx.arc(h.x, sy, h.r-(BALL_RADIUS*0.4), 0, Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
                 
+                // Draw movement indicator for VERY_HARD mode
                 if (currentDifficulty === 'VERY_HARD') {
                     const zoneIndex = Math.floor(h.y / CURRENT_ZONE_HEIGHT);
                     const direction = (zoneIndex % 2 === 0) ? -1 : 1;
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; ctx.beginPath();
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; 
+                    ctx.beginPath();
                     const arrowX = h.x + (direction * 10);
                     ctx.moveTo(arrowX, sy); ctx.lineTo(h.x, sy - 5); ctx.lineTo(h.x, sy + 5); ctx.fill();
                 }
             }
+
+            // 3. Draw Magnetic Beam (Rail)
             if(beam) {
                 const sy1 = beam.y1 - cameraY; const sy2 = beam.y2 - cameraY;
+                
+                // Shadow/glow effect, color changes when ball is magnetized
                 ctx.shadowBlur = ball.magnetized?30:20; ctx.shadowColor = ball.magnetized?'#93C5FD':'#3B82F6';
-                ctx.strokeStyle = ball.magnetized?'#60A5FA':'#3B82F6'; ctx.lineWidth = ball.magnetized?BEAM_THICKNESS+2:BEAM_THICKNESS;
-                ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(beam.x1, sy1); ctx.lineTo(beam.x2, sy2); ctx.stroke();
+                ctx.strokeStyle = ball.magnetized?'#60A5FA':'#3B82F6'; 
+                ctx.lineWidth = ball.magnetized?BEAM_THICKNESS+2:BEAM_THICKNESS;
+                ctx.lineCap = 'round'; 
+                ctx.beginPath(); ctx.moveTo(beam.x1, sy1); ctx.lineTo(beam.x2, sy2); ctx.stroke();
+                
+                // White inner core
                 ctx.shadowBlur = 0; ctx.strokeStyle = '#FFF'; ctx.lineWidth = 2;
                 ctx.beginPath(); ctx.moveTo(beam.x1, sy1); ctx.lineTo(beam.x2, sy2); ctx.stroke();
             }
+
+            // 4. Draw Player Ball
             const bsy = ball.y - cameraY;
-            ctx.fillStyle = ball.magnetized?'#60A5FA':'#FFF'; ctx.shadowBlur = 15; ctx.shadowColor = '#FFF';
+            ctx.fillStyle = ball.magnetized?'#60A5FA':'#FFF'; 
+            ctx.shadowBlur = 15; ctx.shadowColor = '#FFF';
             ctx.beginPath(); ctx.arc(ball.x, bsy, BALL_RADIUS, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0;
+
+            // 5. Draw Particles
             for(let p of particles) {
-                const psy = p.y - cameraY; ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
+                const psy = p.y - cameraY; 
+                ctx.globalAlpha = p.life; 
+                ctx.fillStyle = p.color;
                 ctx.beginPath(); ctx.arc(p.x, psy, 2, 0, Math.PI*2); ctx.fill();
             }
             ctx.globalAlpha = 1;
         }
 
+        /**
+         * Draws non-game UI elements on the separate UI canvas (e.g., input zones).
+         */
         function drawUI() {
             uiCtx.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
+            // Draw input circles around the touch points
             if (rawBeam) {
-                uiCtx.beginPath(); uiCtx.arc(rawBeam.x1, rawBeam.y1, 30, 0, Math.PI*2); uiCtx.strokeStyle='rgba(255,255,255,0.3)'; uiCtx.lineWidth=2; uiCtx.stroke();
-                uiCtx.beginPath(); uiCtx.arc(rawBeam.x2, rawBeam.y2, 4, 0, Math.PI*2); uiCtx.fillStyle='rgba(255,255,255,0.8)'; uiCtx.fill();
+                // Left thumb circle (larger visual indicator)
+                uiCtx.beginPath(); 
+                uiCtx.arc(rawBeam.x1, rawBeam.y1, 30, 0, Math.PI*2); 
+                uiCtx.strokeStyle='rgba(255,255,255,0.3)'; 
+                uiCtx.lineWidth=2; 
+                uiCtx.stroke();
+                
+                // Right thumb circle (smaller, secondary indicator)
+                uiCtx.beginPath(); 
+                uiCtx.arc(rawBeam.x2, rawBeam.y2, 4, 0, Math.PI*2); 
+                uiCtx.fillStyle='rgba(255,255,255,0.8)'; 
+                uiCtx.fill();
             }
         }
 
+        /**
+         * The main game loop function.
+         * @param {DOMHighResTimeStamp} timestamp - The current time provided by requestAnimationFrame.
+         */
         function loop(timestamp) {
             if (!isPlaying) return;
-            const dt = (timestamp - lastTime) / 1000; lastTime = timestamp;
-            update(Math.min(dt, 0.05)); draw(); drawUI(); animationFrameId = requestAnimationFrame(loop);
+            // Calculate delta time (dt) in seconds
+            const dt = (timestamp - lastTime) / 1000; 
+            lastTime = timestamp;
+            
+            // Cap dt to prevent physics instability during large lag spikes
+            update(Math.min(dt, 0.05)); 
+            draw(); 
+            drawUI(); 
+            
+            animationFrameId = requestAnimationFrame(loop);
         }
 
+        // =================================================================
+        // --- INPUT HANDLING ---
+        // =================================================================
+
+        /**
+         * Handles all touch events (start, move, end, cancel).
+         * @param {TouchEvent} e - The touch event object.
+         */
         function handleTouch(e) {
+            // Prevent interaction if touching a menu button
             if(e.target.classList.contains('game-btn') || e.target.closest('.game-btn')) return;
-            e.preventDefault();
+            e.preventDefault(); // Stop default browser behavior (like scrolling/zooming)
+            
             const rect = touchLayer.getBoundingClientRect();
             const touches = e.changedTouches;
             const midX = window.innerWidth / 2;
+            
             for(let i=0; i<touches.length; i++) {
-                const t = touches[i]; const tx = t.clientX - rect.left; const ty = t.clientY - rect.top;
-                const isLeft = tx < midX;
+                const t = touches[i]; 
+                const tx = t.clientX - rect.left; 
+                const ty = t.clientY - rect.top;
+                const isLeft = tx < midX; // Determine if touch is on the left half of the screen
+
                 if(e.type === 'touchstart') {
+                    // Assign touch ID to the first available thumb control in the respective half
                     if(isLeft && !leftThumb) leftThumb = { x:tx, y:ty, id:t.identifier };
                     else if(!isLeft && !rightThumb) rightThumb = { x:tx, y:ty, id:t.identifier };
                 } else if(e.type === 'touchmove') {
+                    // Update position if touch ID matches an active thumb
                     if(leftThumb && t.identifier === leftThumb.id) { leftThumb.x=tx; leftThumb.y=ty; }
                     if(rightThumb && t.identifier === rightThumb.id) { rightThumb.x=tx; rightThumb.y=ty; }
                 } else if(e.type === 'touchend' || e.type === 'touchcancel') {
+                    // Release thumb control on end/cancel
                     if(leftThumb && t.identifier === leftThumb.id) leftThumb = null;
                     if(rightThumb && t.identifier === rightThumb.id) rightThumb = null;
                 }
             }
         }
 
+        /**
+         * Handles mouse events for desktop/hybrid control emulation.
+         * The mouse click emulates two touch points (left and right thumb).
+         * @param {MouseEvent} e - The mouse event object.
+         */
         function handleMouse(e) {
             const rect = touchLayer.getBoundingClientRect();
-            const mx = e.clientX - rect.left; const my = e.clientY - rect.top;
+            const mx = e.clientX - rect.left; 
+            const my = e.clientY - rect.top;
+            
             if(e.type === 'mousedown') {
-                const spread = 100; leftThumb = { x: mx - spread, y: my, id: 'm1' }; rightThumb = { x: mx + spread, y: my, id: 'm2' };
-            } else if(e.type === 'mousemove' && e.buttons === 1) {
+                // Initialize two thumbs offset horizontally from the click point
+                const spread = 100; 
+                leftThumb = { x: mx - spread, y: my, id: 'm1' }; 
+                rightThumb = { x: mx + spread, y: my, id: 'm2' };
+            } else if(e.type === 'mousemove' && e.buttons === 1) { // Check if left button is down
+                // Move the center point (mx, my) and apply tilt based on horizontal deviation
                 const tilt = (mx - window.innerWidth/2) * 0.5;
-                leftThumb = { x: mx - 100, y: my - tilt, id: 'm1' }; rightThumb = { x: mx + 100, y: my + tilt, id: 'm2' };
-            } else if(e.type === 'mouseup') { leftThumb = null; rightThumb = null; }
+                leftThumb = { x: mx - 100, y: my - tilt, id: 'm1' }; 
+                rightThumb = { x: mx + 100, y: my + tilt, id: 'm2' };
+            } else if(e.type === 'mouseup') { 
+                leftThumb = null; 
+                rightThumb = null; 
+            }
         }
 
-        function resize() {
-            canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-            uiCanvas.width = window.innerWidth; uiCanvas.height = window.innerHeight;
-            bgStars = [];
-            for(let i=0; i<60; i++) bgStars.push({x:Math.random()*canvas.width, y:Math.random()*canvas.height, size:Math.random()*2.5, speed:0.2+Math.random()*0.5});
-        }
+        // =================================================================
+        // --- STORAGE & UI HELPERS ---
+        // =================================================================
 
+        /**
+         * Saves the current score if it's a new best for the active difficulty.
+         * Uses localStorage for persistence.
+         * @param {number} newScore - The score to check and potentially save.
+         * @returns {boolean} True if a new record was set.
+         */
         function saveScore(newScore) {
             try {
                 let isBest = false;
+                // Check and save against the appropriate difficulty best score
                 if (currentDifficulty === 'NORMAL' && newScore > bestNormal) {
                     bestNormal = newScore; localStorage.setItem('beam_balance_normal_best', bestNormal); isBest = true;
                 } else if (currentDifficulty === 'HARD' && newScore > bestHard) {
@@ -571,9 +819,16 @@
                     bestVeryHard = newScore; localStorage.setItem('beam_balance_veryhard_best', bestVeryHard); isBest = true;
                 }
                 return isBest;
-            } catch(e) { return false; }
+            } catch(e) { 
+                // Handle cases where localStorage access might be restricted
+                console.error("Failed to save score:", e);
+                return false; 
+            }
         }
 
+        /**
+         * Loads high scores from localStorage on startup.
+         */
         function loadScores() {
             try {
                 const n = localStorage.getItem('beam_balance_normal_best');
@@ -582,20 +837,28 @@
                 bestNormal = n ? parseInt(n) : 0;
                 bestHard = h ? parseInt(h) : 0;
                 bestVeryHard = v ? parseInt(v) : 0;
-            } catch(e) { bestNormal=0; bestHard=0; bestVeryHard=0; }
+            } catch(e) { 
+                console.warn("Could not load scores from localStorage.", e);
+                bestNormal=0; bestHard=0; bestVeryHard=0; 
+            }
             updateMenuUI();
         }
 
+        /**
+         * Updates the best score displays on the main menu.
+         */
         function updateMenuUI() {
             document.getElementById('menuNormalBest').innerText = bestNormal;
             document.getElementById('menuHardBest').innerText = bestHard;
             document.getElementById('menuVeryHardBest').innerText = bestVeryHard;
         }
 
-        // --- BOOT ---
+        // --- Initial Application Boot ---
+        // Ensure the boot function runs once the document is ready.
         if (document.readyState === 'complete' || document.readyState === 'interactive') {
             boot();
         } else {
+            // Use DOMContentLoaded first for faster startup, then load as a fallback
             window.addEventListener('DOMContentLoaded', boot);
             window.addEventListener('load', boot);
         }
