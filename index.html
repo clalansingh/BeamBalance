@@ -42,11 +42,9 @@
             background: rgba(15, 23, 42, 0.8);
             border-radius: 12px;
             display: flex; align-items: center; justify-content: center;
-            pointer-events: auto; /* Clickable */
-            cursor: pointer;
+            pointer-events: none; /* No longer clickable, passive display */
             transition: transform 0.1s;
         }
-        .inventory-box:active { transform: scale(0.95); }
         .inv-icon { font-family: 'Orbitron', sans-serif; font-weight: bold; font-size: 24px; }
         .inv-hint { font-size: 10px; color: #94A3B8; text-align: center; margin-top: 4px; font-family: monospace;}
 
@@ -235,7 +233,7 @@
         const VOID_SPEED = 40;         
         const CURRENT_ZONE_HEIGHT = 500; 
         
-        const VERSION = "v0.2.3"; // Bumped version
+        const VERSION = "v0.2.4"; // Bumped version
 
         // Power-Up Constants
         const POWERUP_FREQ_PIXELS = 100 * 10; // 100m (1m = 10px) = 1000px
@@ -282,7 +280,7 @@
         let inventory = null; // null, 'SHIELD', 'TELEPORT', 'SLOW'
         let shieldActive = false;
         let slowTimer = 0;
-        let teleportPending = false; // If true, next tap teleports
+        let wasBeamActive = false; // Logic helper for Slowdown activation
         let lastPowerUpY = 0; // Track last generation point
 
         // =================================================================
@@ -334,7 +332,6 @@
             bind('btnVeryHard', () => initGame('VERY_HARD'));
             bind('btnRetry', () => initGame(currentDifficulty));
             bind('btnMenu', showMenu);
-            bind('inventorySlot', useInventory);
         }
 
         function showMenu() {
@@ -383,7 +380,7 @@
             inventory = null;
             shieldActive = false;
             slowTimer = 0;
-            teleportPending = false;
+            wasBeamActive = false;
             lastPowerUpY = window.innerHeight; // Start spawning after a screen length
 
             updateInventoryUI();
@@ -539,9 +536,17 @@
                 }
             }
 
-            // 5. BEAM LOGIC
-            // If teleport is pending, we do NOT form a beam (allows tapping screen to teleport)
-            if (leftThumb && rightThumb && !teleportPending) {
+            // 5. BEAM LOGIC & SLOWDOWN TRIGGER
+            if (leftThumb && rightThumb) {
+                // Activation Trigger for Slowdown
+                if (!wasBeamActive && inventory === 'SLOW') {
+                    slowTimer = 10.0;
+                    inventory = null;
+                    updateInventoryUI();
+                    spawnSparks(ball.x, ball.y, 15, '#EAB308'); // Yellow sparks
+                }
+                wasBeamActive = true;
+
                 rawBeam = { x1: leftThumb.x, y1: leftThumb.y, x2: rightThumb.x, y2: rightThumb.y };
                 const rawX1 = leftThumb.x; const rawY1 = leftThumb.y + cameraY;
                 const rawX2 = rightThumb.x; const rawY2 = rightThumb.y + cameraY;
@@ -560,6 +565,7 @@
                 if (beam.ny > 0) { beam.nx = -beam.nx; beam.ny = -beam.ny; }
 
             } else {
+                wasBeamActive = false;
                 beam = null; rawBeam = null; ball.magnetized = false; 
             }
 
@@ -652,29 +658,18 @@
         }
 
         function collectPowerUp(p) {
-            // Only hold one
-            if (inventory === null) {
-                inventory = p.type;
+            if (inventory === null && !shieldActive) {
+                if (p.type === 'SHIELD') {
+                    shieldActive = true;
+                    inventory = 'SHIELD'; // Set inventory for UI display purposes
+                    spawnSparks(p.x, p.y, 10, '#EF4444');
+                    spawnSparks(ball.x, ball.y, 10, '#EF4444'); // Show feedback on ball
+                } else {
+                    inventory = p.type;
+                    spawnSparks(p.x, p.y, 10, '#FFF');
+                }
                 updateInventoryUI();
-                spawnSparks(p.x, p.y, 10, '#FFF');
             }
-        }
-
-        function useInventory() {
-            if (!isPlaying || !inventory) return;
-
-            if (inventory === 'SHIELD') {
-                shieldActive = true;
-                inventory = null;
-                spawnSparks(ball.x, ball.y, 10, '#EF4444');
-            } else if (inventory === 'SLOW') {
-                slowTimer = 10.0;
-                inventory = null;
-            } else if (inventory === 'TELEPORT') {
-                // Teleport Logic: Toggle "Pending" mode
-                teleportPending = !teleportPending;
-            }
-            updateInventoryUI();
         }
 
         function performTeleport(tx, ty) {
@@ -686,7 +681,6 @@
             spawnSparks(ball.x, ball.y, 15, '#06B6D4');
             
             inventory = null;
-            teleportPending = false;
             updateInventoryUI();
         }
 
@@ -694,26 +688,28 @@
             let html = '';
             let color = '#475569'; // Empty color
 
-            if (inventory) {
-                if (inventory === 'SHIELD') {
-                    html = '<span class="inv-icon" style="color:#EF4444">S</span>';
-                    color = '#7F1D1D';
-                } else if (inventory === 'SLOW') {
+            // Prioritize displaying shield status if active
+            if (shieldActive) {
+                html = '<span class="inv-icon" style="color:#EF4444">S</span>';
+                color = '#7F1D1D';
+            } else if (inventory) {
+                if (inventory === 'SLOW') {
                     html = '<span class="inv-icon" style="color:#EAB308">Z</span>';
+                    html += '<div class="inv-hint" style="position:absolute; bottom: -25px; width: 100px; color:#EAB308; font-weight:bold;">ACTIVATE BEAM</div>';
                     color = '#713F12';
                 } else if (inventory === 'TELEPORT') {
                     html = '<span class="inv-icon" style="color:#06B6D4">T</span>';
-                    color = teleportPending ? '#0E7490' : '#155E75';
+                    html += '<div class="inv-hint" style="position:absolute; bottom: -25px; width: 100px; color:#06B6D4; font-weight:bold;">TAP TO WARP</div>';
+                    color = '#155E75';
                 }
             }
             
-            // Extra hint if teleport pending
-            if (teleportPending) {
-                html += '<div class="inv-hint" style="position:absolute; bottom: -20px; width: 100px; color:#06B6D4; font-weight:bold;">TAP SCREEN</div>';
+            // Visual styling
+            if (inventory === 'TELEPORT') {
                 invSlot.style.borderColor = '#22D3EE';
                 invSlot.style.boxShadow = '0 0 15px #06B6D4';
             } else {
-                invSlot.style.borderColor = inventory ? '#94A3B8' : '#475569';
+                invSlot.style.borderColor = (inventory || shieldActive) ? '#94A3B8' : '#475569';
                 invSlot.style.boxShadow = 'none';
             }
             
@@ -886,18 +882,16 @@
         // =================================================================
 
         function handleTouch(e) {
-            // Check for Inventory tap
-            // (Normally handled by click listener on div, but we need to ensure no conflict)
             if(e.target.closest('.inventory-box') || e.target.classList.contains('game-btn')) return;
-            
             e.preventDefault(); 
             
-            // SPECIAL: Teleport Input
-            if (teleportPending && e.type === 'touchstart') {
+            // TELEPORT LOGIC: Consume on next tap if holding Teleport
+            // Check if beam is inactive (we need less than 2 touches to claim beam is inactive/forming)
+            if (inventory === 'TELEPORT' && (!leftThumb || !rightThumb) && e.type === 'touchstart') {
                 const t = e.changedTouches[0];
                 const rect = touchLayer.getBoundingClientRect();
                 performTeleport(t.clientX - rect.left, t.clientY - rect.top);
-                return;
+                return; // Do NOT register this touch as a thumb for beam creation
             }
 
             const rect = touchLayer.getBoundingClientRect();
@@ -924,8 +918,8 @@
         }
 
         function handleMouse(e) {
-            // Special Teleport Mouse Input
-            if (teleportPending && e.type === 'mousedown') {
+            // TELEPORT LOGIC (Mouse Version)
+            if (inventory === 'TELEPORT' && e.type === 'mousedown') {
                  const rect = touchLayer.getBoundingClientRect();
                  performTeleport(e.clientX - rect.left, e.clientY - rect.top);
                  return;
